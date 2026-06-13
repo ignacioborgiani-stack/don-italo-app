@@ -4,7 +4,7 @@
 
       <!-- Logo -->
       <div style="text-align:center;margin-bottom:28px">
-        <div style="font-size:52px;margin-bottom:8px">🌾</div>
+        <img src="@/assets/logo_transparent.png" alt="Don Italo" style="width:80px;height:80px;object-fit:contain;margin-bottom:8px"/>
         <h1 style="font-size:26px;font-weight:800;color:#2d5a27;margin:0">Don Italo</h1>
         <p style="font-size:13px;color:#6b7280;margin-top:4px">Gestión Agrícola</p>
       </div>

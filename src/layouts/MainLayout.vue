@@ -4,7 +4,7 @@
       <q-toolbar>
         <!-- Logo -->
         <div class="row items-center q-gutter-x-sm" style="padding-right:12px;border-right:1px solid rgba(255,255,255,.15)">
-          <span style="font-size:22px">🌾</span>
+          <img src="@/assets/logo_transparent.png" alt="Don Italo" style="width:40px;height:40px;object-fit:contain"/>
           <span style="color:#fff;font-weight:800;font-size:17px">Don Italo</span>
         </div>
 
