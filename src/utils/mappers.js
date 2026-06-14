@@ -91,21 +91,60 @@ export const asignacionFromDb = r => ({
 export const catToDb = c => ({
   id: c.id,
   nombre: c.nombre,
+  familia: c.familia || 'Otros',
   categoria: c.categoria || 'otro',
   precio: parseFloat(c.precio) || 0,
   moneda: c.moneda || 'USD',
   unidad_precio: c.unidadPrecio || 'kg',
   kg_por_bolsa: c.kgPorBolsa ? parseFloat(c.kgPorBolsa) : null,
+  equivalencias: Array.isArray(c.equivalencias) && c.equivalencias.length ? c.equivalencias : null,
+  activo: c.activo === false ? false : true,
   notas: c.notas || '',
 })
 
 export const catFromDb = r => ({
   id: r.id,
   nombre: r.nombre,
+  familia: r.familia || 'Otros',
   categoria: r.categoria || 'otro',
   precio: parseFloat(r.precio) || 0,
   moneda: r.moneda || 'USD',
   unidadPrecio: r.unidad_precio || 'kg',
   kgPorBolsa: r.kg_por_bolsa ? parseFloat(r.kg_por_bolsa) : null,
+  equivalencias: r.equivalencias || [],
+  activo: r.activo === false ? false : true,
+  notas: r.notas || '',
+})
+
+// ── Catálogo de cultivos (precios y rindes de referencia) ─────────
+export const cultivoRefToDb = c => ({
+  id: c.id,
+  nombre: c.nombre,
+  tipo: c.tipo || 'estival',
+  precio_usd_tn: parseFloat(c.precioUsdTn) || 0,
+  rendimiento_estimado_qq: parseFloat(c.rendimientoEstimadoQq) || 0,
+  cosecha_porc: parseFloat(c.cosechaPorc) || 0,
+  comercializacion_porc: parseFloat(c.comercializacionPorc) || 0,
+  comercializacion_fija_usd_tn: parseFloat(c.comercializacionFijaUsdTn) || 0,
+  flete_usd_tn: parseFloat(c.fleteUsdTn) || 0,
+  seguro_usd_ha: parseFloat(c.seguroUsdHa) || 0,
+  rendimiento_asegurado_qq: parseFloat(c.rendimientoAseguradoQq) || 0,
+  alquiler_qq_soja: parseFloat(c.alquilerQqSoja) || 0,
+  notas: c.notas || '',
+})
+
+export const cultivoRefFromDb = r => ({
+  id: r.id,
+  nombre: r.nombre,
+  tipo: r.tipo || 'estival',
+  precioUsdTn: parseFloat(r.precio_usd_tn) || 0,
+  rendimientoEstimadoQq: parseFloat(r.rendimiento_estimado_qq) || 0,
+  cosechaPorc: parseFloat(r.cosecha_porc) || 0,
+  comercializacionPorc: parseFloat(r.comercializacion_porc) || 0,
+  comercializacionFijaUsdTn: parseFloat(r.comercializacion_fija_usd_tn) || 0,
+  fleteUsdTn: parseFloat(r.flete_usd_tn) || 0,
+  seguroUsdHa: parseFloat(r.seguro_usd_ha) || 0,
+  rendimientoAseguradoQq: parseFloat(r.rendimiento_asegurado_qq) || 0,
+  alquilerQqSoja: parseFloat(r.alquiler_qq_soja) || 0,
   notas: r.notas || '',
 })

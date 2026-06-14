@@ -188,13 +188,14 @@ async function confirmarEliminar() {
 const TABS = [
   { name: 'dashboard',   label: 'Dashboard',          e: '📊', path: '/' },
   { name: 'lotesMaestro',label: 'Lotes',              e: '🗺️', path: '/lotes-maestro' },
+  { name: 'catalogo',    label: 'Catálogo',           e: '📚', path: '/catalogo' },
   { name: 'lotes',       label: 'Costos Contables',   e: '📒', path: '/lotes' },
   { name: 'proyectados', label: 'Costos Proyectados', e: '📈', path: '/proyectados' },
   { name: 'stocks',      label: 'Stocks',             e: '📦', path: '/stocks' },
   { name: 'chat',        label: 'Chat IA',            e: '🤖', path: '/chat' },
 ]
 
-const pathToName = { '/': 'dashboard', '/lotes-maestro': 'lotesMaestro', '/lotes': 'lotes', '/proyectados': 'proyectados', '/stocks': 'stocks', '/chat': 'chat' }
+const pathToName = { '/': 'dashboard', '/lotes-maestro': 'lotesMaestro', '/catalogo': 'catalogo', '/lotes': 'lotes', '/proyectados': 'proyectados', '/stocks': 'stocks', '/chat': 'chat' }
 const activeTab  = computed(() => pathToName[route.path] || 'dashboard')
 
 function onTab(name) {

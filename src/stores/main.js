@@ -50,6 +50,7 @@ export const useMainStore = defineStore('main', () => {
       sbConnected.value  = true
       // Tablas opcionales: si aún no se corrió la migración, no deben romper la carga principal
       try { await useCatalogoStore().loadCatalogo() } catch (e) { console.warn('[catalogo] tabla no disponible:', e?.message) }
+      try { await useCatalogoStore().loadCultivos() } catch (e) { console.warn('[catalogo_cultivos] tabla no disponible:', e?.message) }
       try { await useLotesMaestroStore().loadLotesMaestro() } catch (e) { console.warn('[lotes_maestro] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
