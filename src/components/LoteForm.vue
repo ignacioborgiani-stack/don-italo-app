@@ -66,7 +66,7 @@
 
     <div class="row justify-end q-gutter-sm q-mt-md">
       <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-      <q-btn unelevated color="primary" label="Guardar lote" @click="$emit('save', f)"/>
+      <q-btn unelevated color="primary" label="Guardar lote" @click="onGuardar"/>
     </div>
   </div>
 </template>
@@ -75,13 +75,36 @@
 import { reactive, computed } from 'vue'
 import CultivoBlock from './CultivoBlock.vue'
 import { useMainStore } from '../stores/main'
-import { calcLote } from '../utils/calculations'
+import { useCatalogoStore } from '../stores/catalogo'
+import { calcLote, calcularCostoItemHa } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const props = defineProps({ initial: Object })
-defineEmits(['save', 'cancel'])
+const emit = defineEmits(['save', 'cancel'])
 
 const store = useMainStore()
+const catStore = useCatalogoStore()
+const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+
+// Congela costoHaCalculado de cada ítem con el rinde/precio del cultivo (para vistas resumen).
+function finalizarCultivo(c) {
+  if (!c) return c
+  const itemsCosto = (c.itemsCosto || []).map(it => ({
+    ...it,
+    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, store.tipoCambio, c.rendimientoQq, c.precioVentaTn),
+  }))
+  return { ...c, itemsCosto }
+}
+function onGuardar() {
+  const out = { ...f }
+  if (f.tipoSiembra === 'doble') {
+    out.cultivoInvernal = finalizarCultivo(f.cultivoInvernal)
+    out.cultivoEstival  = finalizarCultivo(f.cultivoEstival)
+  } else {
+    out.cultivo = finalizarCultivo(f.cultivo)
+  }
+  emit('save', out)
+}
 
 const emptyC = (nombre, tipo) => ({ nombre, tipo, rendimientoQq: '', precioVentaTn: '', itemsCosto: [] })
 const base   = () => ({

@@ -23,6 +23,7 @@ export const useMainStore = defineStore('main', () => {
   const sbConnected  = ref(false)
   const campania     = ref('2024/25')
   const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
+  const tipoCambio   = ref(1000)   // ARS por USD (para insumos cotizados en ARS)
   const lotes        = ref([])
   const proyecciones = ref([])
   const stocks       = ref([])
@@ -262,11 +263,12 @@ export const useMainStore = defineStore('main', () => {
   }
 
   function setCampania(c) { campania.value = c }
+  function setTipoCambio(v) { tipoCambio.value = parseFloat(v) || tipoCambio.value }
 
   return {
-    sbConnected, campania, campanas, lotes, proyecciones, stocks, chatMessages, apiKey,
+    sbConnected, campania, campanas, tipoCambio, lotes, proyecciones, stocks, chatMessages, apiKey,
     loadData, cargarDatosDemo, resetData,
-    loadCampanas, addCampana, delCampana,
+    loadCampanas, addCampana, delCampana, setTipoCambio,
     addLote, updLote, delLote,
     updProy,
     addStock, updStock, delStock, moveStock,

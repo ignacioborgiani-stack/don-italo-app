@@ -18,7 +18,7 @@
         <input type="number" :value="cultivoObj.precioVentaTn||''" @input="set('precioVentaTn',$event.target.value)" placeholder="0" class="di-inp"/>
       </div>
     </div>
-    <ItemsCostoEditor :items="cultivoObj.itemsCosto||[]" @update:items="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v})"/>
+    <ItemsCostoCatalogo :items="cultivoObj.itemsCosto||[]" :rendimiento-qq="cultivoObj.rendimientoQq" :precio-venta-tn="cultivoObj.precioVentaTn" @update:items="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v})"/>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f9fafb;border-radius:8px;padding:8px 10px;margin-top:10px">
       <div v-for="[l,v,c] in stats" :key="l">
         <p style="font-size:10px;color:#9ca3af">{{ l }}</p>
@@ -31,9 +31,11 @@
 <script setup>
 import { computed } from 'vue'
 import CultivoSelect from './CultivoSelect.vue'
-import ItemsCostoEditor from './ItemsCostoEditor.vue'
+import ItemsCostoCatalogo from './ItemsCostoCatalogo.vue'
+import { useCatalogoStore } from '../stores/catalogo'
+import { useMainStore } from '../stores/main'
 import { CULTIVARES_INVERNALES } from '../utils/constants'
-import { calcCostoHa, calcIngresoHa } from '../utils/calculations'
+import { calcIngresoHa, calcularCostoItemHa } from '../utils/calculations'
 import { fmtUSD } from '../utils/formatters'
 
 const props = defineProps({
@@ -45,7 +47,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:cultivoObj'])
 
-const costoHa  = computed(() => calcCostoHa(props.cultivoObj))
+const catStore = useCatalogoStore()
+const main = useMainStore()
+const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+
+const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) =>
+  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn), 0))
 const ingHa    = computed(() => calcIngresoHa(props.cultivoObj))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 
