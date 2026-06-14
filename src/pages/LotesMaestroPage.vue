@@ -19,9 +19,12 @@
           <h3 style="color:#fff;font-weight:700;font-size:15px;margin:0">{{ l.nombre }}</h3>
           <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:600">{{ fmtNum(l.ha) }} ha</span>
         </div>
+        <div v-if="l.poligono && l.poligono.length" style="padding:0 0 2px">
+          <LotePoligonoMap :poligono="l.poligono" :height="120" :interactive="false"/>
+        </div>
         <div style="padding:12px 16px;flex:1;display:flex;flex-direction:column;gap:6px">
           <div v-if="l.ubicacion" style="font-size:13px;color:#374151">📍 {{ l.ubicacion }}</div>
-          <div v-if="l.lat!=null && l.lng!=null" style="font-size:12px;color:#9ca3af">🌐 {{ l.lat }}, {{ l.lng }}</div>
+          <div v-if="(!l.poligono || !l.poligono.length) && l.lat!=null && l.lng!=null" style="font-size:12px;color:#9ca3af">🌐 {{ l.lat }}, {{ l.lng }}</div>
           <div v-if="l.notas" style="font-size:12px;color:#6b7280;font-style:italic">{{ l.notas }}</div>
           <div style="margin-top:4px">
             <span :style="usoBadge(l.id)">
@@ -74,6 +77,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { supabase } from '../lib/supabase'
 import LoteMaestroForm from '../components/LoteMaestroForm.vue'
+import LotePoligonoMap from '../components/LotePoligonoMap.vue'
 import { fmtNum } from '../utils/formatters'
 
 const store = useLotesMaestroStore()

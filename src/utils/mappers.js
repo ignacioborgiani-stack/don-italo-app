@@ -53,6 +53,7 @@ export const loteMaestroToDb = l => ({
   ubicacion: l.ubicacion || '',
   lat: (l.lat === '' || l.lat == null) ? null : parseFloat(l.lat),
   lng: (l.lng === '' || l.lng == null) ? null : parseFloat(l.lng),
+  poligono: (Array.isArray(l.poligono) && l.poligono.length) ? l.poligono : null,
   notas: l.notas || '',
 })
 export const loteMaestroFromDb = r => ({
@@ -62,6 +63,7 @@ export const loteMaestroFromDb = r => ({
   ubicacion: r.ubicacion || '',
   lat: r.lat,
   lng: r.lng,
+  poligono: r.poligono || null,
   notas: r.notas || '',
 })
 

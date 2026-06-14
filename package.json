@@ -12,6 +12,8 @@
   "dependencies": {
     "@quasar/extras": "^1.16.14",
     "@supabase/supabase-js": "^2.45.0",
+    "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
     "pinia": "^2.2.0",
     "quasar": "^2.16.5",
     "vue": "^3.4.27",
