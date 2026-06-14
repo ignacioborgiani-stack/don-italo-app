@@ -1,10 +1,16 @@
 <template>
   <q-page style="padding:24px">
-    <div class="row items-center justify-between q-mb-lg" style="flex-wrap:wrap;gap:12px">
-      <div>
-        <h2 style="font-size:18px;font-weight:700;margin:0">Lotes</h2>
-        <p style="font-size:13px;color:#6b7280;margin:2px 0 0">Catastro de campos — independiente de campañas y costos.</p>
-      </div>
+    <div class="q-mb-md">
+      <h2 style="font-size:18px;font-weight:700;margin:0">Lotes</h2>
+      <p style="font-size:13px;color:#6b7280;margin:2px 0 0">Catastro de campos — independiente de campañas y costos.</p>
+    </div>
+
+    <!-- Mapa unificado con todos los polígonos -->
+    <LotesMapa :lotes="lotes" :campania="mainStore.campania" :highlight-id="hoverId"/>
+
+    <!-- Separador "Campos" + botón agregar -->
+    <div class="row items-center justify-between q-mt-lg q-mb-md" style="flex-wrap:wrap;gap:12px;border-top:1px solid #e5e1d8;padding-top:16px">
+      <h3 style="font-size:16px;font-weight:700;margin:0">Campos</h3>
       <q-btn unelevated color="primary" icon="add" label="Agregar lote" @click="openModal('add')"/>
     </div>
 
@@ -14,19 +20,17 @@
 
     <div v-else style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
       <div v-for="l in lotes" :key="l.id"
-        style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;flex-direction:column">
+        @mouseenter="hoverId=l.id" @mouseleave="hoverId=null"
+        :style="{background:'#fff',border:`1px solid ${hoverId===l.id?'#ca8a04':'#d4cfc4'}`,borderRadius:'12px',overflow:'hidden',boxShadow:hoverId===l.id?'0 2px 10px rgba(202,138,4,.25)':'0 1px 4px rgba(0,0,0,.06)',display:'flex',flexDirection:'column',transition:'all .15s'}">
         <div style="background:#2d5a27;padding:11px 16px;display:flex;justify-content:space-between;align-items:center">
           <h3 style="color:#fff;font-weight:700;font-size:15px;margin:0">{{ l.nombre }}</h3>
           <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:600">{{ fmtNum(l.ha) }} ha</span>
         </div>
-        <div v-if="l.poligono && l.poligono.length" style="padding:0 0 2px">
-          <LotePoligonoMap :poligono="l.poligono" :height="120" :interactive="false"/>
-        </div>
         <div style="padding:12px 16px;flex:1;display:flex;flex-direction:column;gap:6px">
           <div v-if="l.ubicacion" style="font-size:13px;color:#374151">📍 {{ l.ubicacion }}</div>
-          <div v-if="(!l.poligono || !l.poligono.length) && l.lat!=null && l.lng!=null" style="font-size:12px;color:#9ca3af">🌐 {{ l.lat }}, {{ l.lng }}</div>
           <div v-if="l.notas" style="font-size:12px;color:#6b7280;font-style:italic">{{ l.notas }}</div>
-          <div style="margin-top:4px">
+          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+            <span :style="geoBadge(l)">{{ (l.poligono && l.poligono.length) ? '📍 Geo cargado' : '📍 Sin geo' }}</span>
             <span :style="usoBadge(l.id)">
               {{ usoCount(l.id) ? `En uso en ${usoCount(l.id)} campaña${usoCount(l.id)>1?'s':''}` : 'Sin asignar a campañas' }}
             </span>
@@ -77,13 +81,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { supabase } from '../lib/supabase'
 import LoteMaestroForm from '../components/LoteMaestroForm.vue'
-import LotePoligonoMap from '../components/LotePoligonoMap.vue'
+import LotesMapa from '../components/LotesMapa.vue'
+import { useMainStore } from '../stores/main'
 import { fmtNum } from '../utils/formatters'
 
 const store = useLotesMaestroStore()
+const mainStore = useMainStore()
 const lotes = computed(() => store.items)
 
-const modal = ref(null)
+const modal  = ref(null)
+const hoverId = ref(null)
 const eliminarOpen   = ref(false)
 const eliminarTarget = ref(null)
 const eliminarError  = ref('')
@@ -105,6 +112,9 @@ async function cargarUso() {
   }
 }
 const usoCount = id => uso.value[id] || 0
+const geoBadge = l => (l.poligono && l.poligono.length)
+  ? 'background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600'
+  : 'background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600'
 const usoBadge = id => {
   const n = usoCount(id)
   return n
