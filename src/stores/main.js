@@ -2,14 +2,27 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
-import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS } from '../utils/constants'
+import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
 import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb } from '../utils/mappers'
+import { useCatalogoStore } from './catalogo'
+import { useLotesMaestroStore } from './lotesMaestro'
 
 const uid = () => crypto.randomUUID()
+
+// Ordenar campañas por el primer número del nombre ("2024/25" → 2024)
+const campanaYear  = n => { const m = String(n).match(/\d+/); return m ? parseInt(m[0], 10) : 0 }
+const ordenCampana = (a, b) => campanaYear(a) - campanaYear(b)
+
+// Tipo de stock → categoría de ítem de costo contable
+const TIPO_A_CATEGORIA = {
+  Semilla: 'semilla', Fertilizante: 'fertilizante',
+  Herbicida: 'fitosanitario', Insecticida: 'fitosanitario', Fungicida: 'fitosanitario',
+}
 
 export const useMainStore = defineStore('main', () => {
   const sbConnected  = ref(false)
   const campania     = ref('2024/25')
+  const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
   const lotes        = ref([])
   const proyecciones = ref([])
   const stocks       = ref([])
@@ -35,10 +48,49 @@ export const useMainStore = defineStore('main', () => {
       stocks.value       = (sr.data || []).map(stFromDb)
       apiKey.value       = cr.data?.find(c => c.clave === 'apiKey')?.valor || ''
       sbConnected.value  = true
+      // Tablas opcionales: si aún no se corrió la migración, no deben romper la carga principal
+      try { await useCatalogoStore().loadCatalogo() } catch (e) { console.warn('[catalogo] tabla no disponible:', e?.message) }
+      try { await useLotesMaestroStore().loadLotesMaestro() } catch (e) { console.warn('[lotes_maestro] tabla no disponible:', e?.message) }
+      try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
+      try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
       console.error('[loadData]', e?.message)
       sbConnected.value = false
     }
+  }
+
+  // ── Campañas ──────────────────────────────────────────────────
+  async function loadCampanas() {
+    const userId = getUid()
+    const { data } = await supabase.from('campanas').select('*')
+    let nombres = (data || []).map(c => c.nombre)
+    if (!nombres.length) {
+      // Primer arranque: sembrar con las campañas que ya aparecen en los lotes + defaults
+      const enLotes = lotes.value.map(l => l.campaña).filter(Boolean)
+      nombres = [...new Set([...CAMPAÑAS, ...enLotes])]
+      if (userId) await supabase.from('campanas').insert(nombres.map(n => ({ user_id: userId, nombre: n })))
+    }
+    campanas.value = nombres.sort(ordenCampana)
+    if (!campanas.value.includes(campania.value)) campania.value = campanas.value[campanas.value.length - 1] || '2024/25'
+  }
+
+  async function addCampana(nombre) {
+    const n = (nombre || '').trim()
+    if (!n || campanas.value.includes(n)) { if (n) campania.value = n; return }
+    const userId = getUid()
+    const { error } = await supabase.from('campanas').insert({ user_id: userId, nombre: n })
+    if (error) throw error
+    campanas.value = [...campanas.value, n].sort(ordenCampana)
+    campania.value = n   // arranca seleccionada y vacía
+  }
+
+  async function delCampana(nombre) {
+    if (campanas.value.length <= 1) throw new Error('Debe quedar al menos una campaña')
+    const userId = getUid()
+    const { error } = await supabase.from('campanas').delete().eq('user_id', userId).eq('nombre', nombre)
+    if (error) throw error
+    campanas.value = campanas.value.filter(c => c !== nombre)
+    if (campania.value === nombre) campania.value = campanas.value[campanas.value.length - 1] || ''
   }
 
   // ── Onboarding: cargar datos de ejemplo ───────────────────────
@@ -53,12 +105,16 @@ export const useMainStore = defineStore('main', () => {
     await supabase.from('stocks').insert(
       MOCK_STOCKS.map(s => ({ ...stToDb({ ...s, id: uid() }), user_id: userId }))
     )
+    await useCatalogoStore().cargarCatalogoDemo()
     await loadData()
   }
 
   function resetData() {
     lotes.value = []; proyecciones.value = []; stocks.value = []
     chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
+    campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
+    useCatalogoStore().reset()
+    useLotesMaestroStore().reset()
   }
 
   // ── Lotes ─────────────────────────────────────────────────────
@@ -119,11 +175,63 @@ export const useMainStore = defineStore('main', () => {
     stocks.value = stocks.value.filter(i => i.id !== id)
   }
 
-  async function moveStock(id, newU, cant, nota) {
+  // Registra un insumo como ítem de costo contable en el lote indicado.
+  // Devuelve true si encontró el lote (por nombre + campaña) y lo actualizó.
+  async function aplicarEnLote(stock, campana, cant, loteDestino) {
+    const nombreLote = loteDestino || stock.lote
+    const lote = lotes.value.find(l => (l.nombre || l.lote) === nombreLote && l.campaña === campana)
+    if (!lote) return false
+
+    const ha    = parseFloat(lote.ha) || 0
+    const total = (parseFloat(cant) || 0) * (parseFloat(stock.precioUnitario) || 0)
+    const item  = {
+      categoria: TIPO_A_CATEGORIA[stock.tipo] || 'otros',
+      nombre: `${stock.nombre} (${parseFloat(cant) || 0} ${stock.unidad} aplicado)`,
+      costoHaUsd: ha > 0 ? Math.round((total / ha) * 100) / 100 : 0,
+      origenStock: stock.id,
+    }
+
+    let delta
+    if (lote.tipoSiembra === 'doble') {
+      const cult = lote.cultivoEstival || lote.cultivoInvernal || { itemsCosto: [] }
+      const upd  = { ...cult, itemsCosto: [...(cult.itemsCosto || []), item] }
+      delta = lote.cultivoEstival ? { cultivoEstival: upd } : { cultivoInvernal: upd }
+    } else {
+      const cult = lote.cultivo || { itemsCosto: [] }
+      delta = { cultivo: { ...cult, itemsCosto: [...(cult.itemsCosto || []), item] } }
+    }
+    await updLote(lote.id, delta)
+    return true
+  }
+
+  // Convierte stocks 'aplicado' antiguos en ítems de costo y los elimina del inventario.
+  async function migrarAplicados() {
+    for (const s of stocks.value.filter(i => i.ubicacion === 'aplicado')) {
+      const ok = await aplicarEnLote(s, s.campana, s.cantidad)
+      if (ok) await delStock(s.id)
+    }
+  }
+
+  async function moveStock(id, newU, cant, nota, loteDestino) {
     const userId = getUid()
     const it = stocks.value.find(i => i.id === id)
     if (!it) return
     const n = parseFloat(cant) || 0
+
+    // Aplicar en campo → se vuelve ítem de costo en el lote y sale del inventario
+    if (newU === 'aplicado') {
+      const ok = await aplicarEnLote(it, campania.value, n, loteDestino)
+      if (!ok) throw new Error('No se encontró el lote asignado en la campaña activa')
+      supabase.from('movimientos').insert({
+        user_id: userId, tipo: 'aplicacion', stock_id: id,
+        insumo_nombre: it.nombre, cantidad: n, unidad: it.unidad,
+        lote_nombre: loteDestino || it.lote, tipo_aplicacion: 'campo',
+        costo_total_ars: n * (parseFloat(it.precioUnitario) || 0),
+      })
+      if (n >= it.cantidad) await delStock(id)
+      else await updStock(id, { cantidad: it.cantidad - n })
+      return
+    }
 
     supabase.from('movimientos').insert({
       user_id: userId, tipo: 'traslado', stock_id: id,
@@ -155,8 +263,9 @@ export const useMainStore = defineStore('main', () => {
   function setCampania(c) { campania.value = c }
 
   return {
-    sbConnected, campania, lotes, proyecciones, stocks, chatMessages, apiKey,
+    sbConnected, campania, campanas, lotes, proyecciones, stocks, chatMessages, apiKey,
     loadData, cargarDatosDemo, resetData,
+    loadCampanas, addCampana, delCampana,
     addLote, updLote, delLote,
     updProy,
     addStock, updStock, delStock, moveStock,

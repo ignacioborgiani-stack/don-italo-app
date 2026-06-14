@@ -16,6 +16,7 @@ export default [
     component: MainLayout,
     children: [
       { path: '',             component: () => import('../pages/DashboardPage.vue') },
+      { path: 'lotes-maestro', component: () => import('../pages/LotesMaestroPage.vue') },
       { path: 'lotes',       component: () => import('../pages/LotesPage.vue') },
       { path: 'proyectados', component: () => import('../pages/ProyectadosPage.vue') },
       { path: 'stocks',      component: () => import('../pages/StocksPage.vue') },

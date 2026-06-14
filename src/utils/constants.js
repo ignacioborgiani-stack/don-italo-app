@@ -74,3 +74,42 @@ export const MOCK_STOCKS = [
   { id: 5, nombre: 'Semilla Maíz DK7220', tipo: 'Semilla',      cantidad: 48,    unidad: 'bolsas', precioUnitario: 65000, precioMoneda: 'ARS', precioUnidadPrecio: '', proveedor: 'AgroSur',  ubicacion: 'insumera', lote: null, campana: '2024/25', fecha: '2025-02-15', remito: 'F-0198', notas: '' },
   { id: 6, nombre: 'Clorpirifos 48%',     tipo: 'Insecticida',  cantidad: 120,   unidad: 'litros', precioUnitario: 2800,  precioMoneda: 'ARS', precioUnidadPrecio: '', proveedor: 'AgroCampo',ubicacion: 'galpon',   lote: null, campana: '2024/25', fecha: '2025-03-08', remito: 'F-0312', notas: '' },
 ]
+
+// ── Catálogo de insumos ───────────────────────────────────────────
+export const CATEGORIAS_CATALOGO = [
+  { key: 'semilla',      label: 'Semilla',        e: '🌱' },
+  { key: 'fertilizante', label: 'Fertilizante',   e: '💊' },
+  { key: 'herbicida',    label: 'Herbicida',      e: '🌿' },
+  { key: 'insecticida',  label: 'Insecticida',    e: '🐛' },
+  { key: 'fungicida',    label: 'Fungicida',      e: '🍄' },
+  { key: 'coadyuvante',  label: 'Coadyuvante',    e: '🧪' },
+  { key: 'curasemilla',  label: 'Curasemilla',    e: '💉' },
+  { key: 'biologico',    label: 'Biológico',      e: '🦠' },
+  { key: 'labor',        label: 'Labor/Servicio', e: '🚜' },
+  { key: 'otro',         label: 'Otro',           e: '📋' },
+]
+
+export const UNIDADES_PRECIO = [
+  { key: 'tn',     label: 'por tn'     },
+  { key: 'kg',     label: 'por kg'     },
+  { key: 'litro',  label: 'por litro'  },
+  { key: 'bolsa',  label: 'por bolsa'  },
+  { key: 'ha',     label: 'por ha'     },
+  { key: 'unidad', label: 'por unidad' },
+]
+
+export const MOCK_CATALOGO = [
+  { nombre: 'Urea',                 categoria: 'fertilizante', precio: 896,   moneda: 'USD', unidadPrecio: 'tn',    kgPorBolsa: null, notas: '' },
+  { nombre: 'MAP',                  categoria: 'fertilizante', precio: 1100,  moneda: 'USD', unidadPrecio: 'tn',    kgPorBolsa: null, notas: '' },
+  { nombre: 'SPS',                  categoria: 'fertilizante', precio: 512,   moneda: 'USD', unidadPrecio: 'tn',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Foszinc 40',           categoria: 'fertilizante', precio: 1080,  moneda: 'USD', unidadPrecio: 'tn',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Semilla Soja',         categoria: 'semilla',      precio: 28.07, moneda: 'USD', unidadPrecio: 'bolsa', kgPorBolsa: 80,   notas: '' },
+  { nombre: 'Semilla Trigo',        categoria: 'semilla',      precio: 29.67, moneda: 'USD', unidadPrecio: 'bolsa', kgPorBolsa: 130,  notas: '' },
+  { nombre: 'Glifosato 75,7 SG',    categoria: 'herbicida',    precio: 5.4,   moneda: 'USD', unidadPrecio: 'litro', kgPorBolsa: null, notas: '' },
+  { nombre: '2,4-D EHE 102%',       categoria: 'herbicida',    precio: 5.6,   moneda: 'USD', unidadPrecio: 'litro', kgPorBolsa: null, notas: '' },
+  { nombre: 'Atrazina 90 WG',       categoria: 'herbicida',    precio: 6.75,  moneda: 'USD', unidadPrecio: 'kg',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Pyroxasulfone 85%',    categoria: 'herbicida',    precio: 103,   moneda: 'USD', unidadPrecio: 'kg',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Labor siembra',         categoria: 'labor',       precio: 94,    moneda: 'USD', unidadPrecio: 'ha',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Aplicación terrestre',  categoria: 'labor',       precio: 10,    moneda: 'USD', unidadPrecio: 'ha',    kgPorBolsa: null, notas: '' },
+  { nombre: 'Aplicación aérea',      categoria: 'labor',       precio: 14,    moneda: 'USD', unidadPrecio: 'ha',    kgPorBolsa: null, notas: '' },
+]

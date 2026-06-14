@@ -8,7 +8,7 @@
       <div>
         <label class="di-lbl">Campaña</label>
         <select v-model="f.campaña" class="di-inp">
-          <option v-for="c in CAMPAÑAS" :key="c">{{ c }}</option>
+          <option v-for="c in store.campanas" :key="c">{{ c }}</option>
         </select>
       </div>
       <div>
@@ -74,16 +74,18 @@
 <script setup>
 import { reactive, computed } from 'vue'
 import CultivoBlock from './CultivoBlock.vue'
-import { CAMPAÑAS } from '../utils/constants'
+import { useMainStore } from '../stores/main'
 import { calcLote } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const props = defineProps({ initial: Object })
 defineEmits(['save', 'cancel'])
 
+const store = useMainStore()
+
 const emptyC = (nombre, tipo) => ({ nombre, tipo, rendimientoQq: '', precioVentaTn: '', itemsCosto: [] })
 const base   = () => ({
-  nombre: '', campaña: '2024/25', ha: '', notas: '', tipoSiembra: 'simple',
+  nombre: '', campaña: store.campania, ha: '', notas: '', tipoSiembra: 'simple',
   cultivo:         emptyC('Soja',  'estival'),
   cultivoInvernal: emptyC('Trigo', 'invernal'),
   cultivoEstival:  emptyC('Soja',  'estival'),

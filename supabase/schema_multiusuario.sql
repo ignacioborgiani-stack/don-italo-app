@@ -14,10 +14,11 @@
 -- ══════════════════════════════════════════════════════════════════
 
 -- ─── LIMPIAR SCHEMA ANTERIOR ──────────────────────────────────────
-DROP TABLE IF EXISTS movimientos   CASCADE;
-DROP TABLE IF EXISTS stocks        CASCADE;
-DROP TABLE IF EXISTS lotes         CASCADE;
-DROP TABLE IF EXISTS proyecciones  CASCADE;
+DROP TABLE IF EXISTS movimientos      CASCADE;
+DROP TABLE IF EXISTS stocks           CASCADE;
+DROP TABLE IF EXISTS lotes            CASCADE;
+DROP TABLE IF EXISTS proyecciones     CASCADE;
+DROP TABLE IF EXISTS catalogo_insumos CASCADE;
 DROP TABLE IF EXISTS configuracion CASCADE;
 DROP TABLE IF EXISTS campanas      CASCADE;
 
@@ -103,6 +104,22 @@ CREATE TABLE proyecciones (
 );
 CREATE INDEX proy_user_campana_idx ON proyecciones (user_id, campana);
 
+-- ─── CATÁLOGO DE INSUMOS ──────────────────────────────────────────
+CREATE TABLE catalogo_insumos (
+  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nombre        text        NOT NULL DEFAULT '',
+  categoria     text        NOT NULL DEFAULT 'otro',
+  precio        numeric     DEFAULT 0,
+  moneda        text        DEFAULT 'USD' CHECK (moneda IN ('USD','ARS')),
+  unidad_precio text        DEFAULT 'kg',
+  kg_por_bolsa  numeric,
+  notas         text        DEFAULT '',
+  created_at    timestamptz DEFAULT now()
+);
+CREATE INDEX catalogo_user_idx      ON catalogo_insumos (user_id);
+CREATE INDEX catalogo_categoria_idx ON catalogo_insumos (user_id, categoria);
+
 -- ─── CONFIGURACION ────────────────────────────────────────────────
 CREATE TABLE configuracion (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,12 +134,13 @@ CREATE TABLE configuracion (
 --  RLS — Row Level Security por usuario
 -- ══════════════════════════════════════════════════════════════════
 
-ALTER TABLE campanas      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lotes         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stocks        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE movimientos   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proyecciones  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campanas         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lotes            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stocks           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movimientos      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proyecciones     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE catalogo_insumos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracion    ENABLE ROW LEVEL SECURITY;
 
 -- ─── campanas ─────────────────────────────────────────────────────
 CREATE POLICY "campanas_select" ON campanas FOR SELECT USING (auth.uid() = user_id);
@@ -152,6 +170,12 @@ CREATE POLICY "proy_select" ON proyecciones FOR SELECT USING (auth.uid() = user_
 CREATE POLICY "proy_insert" ON proyecciones FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "proy_update" ON proyecciones FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "proy_delete" ON proyecciones FOR DELETE USING (auth.uid() = user_id);
+
+-- ─── catalogo_insumos ─────────────────────────────────────────────
+CREATE POLICY "catalogo_select" ON catalogo_insumos FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "catalogo_insert" ON catalogo_insumos FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "catalogo_update" ON catalogo_insumos FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "catalogo_delete" ON catalogo_insumos FOR DELETE USING (auth.uid() = user_id);
 
 -- ─── configuracion ────────────────────────────────────────────────
 CREATE POLICY "config_select" ON configuracion FOR SELECT USING (auth.uid() = user_id);

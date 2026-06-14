@@ -44,3 +44,66 @@ export const stFromDb = r => ({
   lote: r.lote_asignado, campana: r.campana,
   fecha: r.fecha, remito: r.remito, notas: r.notas,
 })
+
+// ── Lotes maestro (catastro) ──────────────────────────────────────
+export const loteMaestroToDb = l => ({
+  id: l.id,
+  nombre: l.nombre,
+  ha: parseFloat(l.ha) || 0,
+  ubicacion: l.ubicacion || '',
+  lat: (l.lat === '' || l.lat == null) ? null : parseFloat(l.lat),
+  lng: (l.lng === '' || l.lng == null) ? null : parseFloat(l.lng),
+  notas: l.notas || '',
+})
+export const loteMaestroFromDb = r => ({
+  id: r.id,
+  nombre: r.nombre,
+  ha: r.ha,
+  ubicacion: r.ubicacion || '',
+  lat: r.lat,
+  lng: r.lng,
+  notas: r.notas || '',
+})
+
+// ── Asignaciones por campaña (lote ↔ campaña ↔ cultivo + costos) ───
+export const asignacionToDb = a => ({
+  id: a.id,
+  lote_id: a.loteId,
+  campana: a.campaña,
+  tipo_siembra: a.tipoSiembra || 'simple',
+  cultivo: a.cultivo || null,
+  cultivo_invernal: a.cultivoInvernal || null,
+  cultivo_estival: a.cultivoEstival || null,
+})
+export const asignacionFromDb = r => ({
+  id: r.id,
+  loteId: r.lote_id,
+  campaña: r.campana,
+  tipoSiembra: r.tipo_siembra,
+  cultivo: r.cultivo,
+  cultivoInvernal: r.cultivo_invernal,
+  cultivoEstival: r.cultivo_estival,
+})
+
+// ── Catálogo de insumos ───────────────────────────────────────────
+export const catToDb = c => ({
+  id: c.id,
+  nombre: c.nombre,
+  categoria: c.categoria || 'otro',
+  precio: parseFloat(c.precio) || 0,
+  moneda: c.moneda || 'USD',
+  unidad_precio: c.unidadPrecio || 'kg',
+  kg_por_bolsa: c.kgPorBolsa ? parseFloat(c.kgPorBolsa) : null,
+  notas: c.notas || '',
+})
+
+export const catFromDb = r => ({
+  id: r.id,
+  nombre: r.nombre,
+  categoria: r.categoria || 'otro',
+  precio: parseFloat(r.precio) || 0,
+  moneda: r.moneda || 'USD',
+  unidadPrecio: r.unidad_precio || 'kg',
+  kgPorBolsa: r.kg_por_bolsa ? parseFloat(r.kg_por_bolsa) : null,
+  notas: r.notas || '',
+})

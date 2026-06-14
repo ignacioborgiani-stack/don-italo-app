@@ -3,9 +3,7 @@
     <div class="row items-center justify-between q-mb-lg" style="flex-wrap:wrap;gap:12px">
       <div class="row items-center q-gutter-sm">
         <h2 style="font-size:18px;font-weight:700;margin:0">Costos Contables</h2>
-        <select :value="store.campania" @change="store.setCampania($event.target.value)" style="padding:6px 12px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;background:#fff;cursor:pointer">
-          <option v-for="c in CAMPAÑAS" :key="c">{{ c }}</option>
-        </select>
+        <span style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:5px 12px;font-size:13px;font-weight:600;color:#2d5a27">📅 {{ store.campania }}</span>
       </div>
       <q-btn unelevated color="primary" icon="add" label="Agregar lote" @click="openModal('add')"/>
     </div>
@@ -121,7 +119,7 @@ import { useMainStore } from '../stores/main'
 import LoteForm    from '../components/LoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
-import { CAMPAÑAS, getCultivoColor } from '../utils/constants'
+import { getCultivoColor } from '../utils/constants'
 import { calcLote, getLoteName } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
