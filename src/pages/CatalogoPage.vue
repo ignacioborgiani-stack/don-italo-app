@@ -81,10 +81,6 @@
           </div>
           <div style="padding:12px 16px;font-size:13px;display:flex;flex-direction:column;gap:6px">
             <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Precio</span><b>{{ fmtUSD(c.precioUsdTn) }}/tn</b></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Rinde estimado</span><b>{{ fmtNum(c.rendimientoEstimadoQq) }} qq/ha</b></div>
-            <div style="display:flex;justify-content:space-between;border-top:1px solid #f0ede8;padding-top:6px;margin-top:2px">
-              <span style="color:#6b7280">Ingreso bruto/ha</span><b style="color:#2d5a27">{{ fmtUSD((c.rendimientoEstimadoQq/10)*c.precioUsdTn) }}</b>
-            </div>
           </div>
           <div style="padding:0 16px 12px;display:flex;gap:6px">
             <button @click="editCultivoModal(c)" style="flex:1;padding:6px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;cursor:pointer;font-size:12px;color:#166534;font-weight:600">Editar</button>
@@ -137,7 +133,7 @@ import { FAMILIAS_BASE, MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS } from '..
 import InsumoForm from '../components/InsumoForm.vue'
 import CultivoRefForm from '../components/CultivoRefForm.vue'
 import { getCultivoColor } from '../utils/constants'
-import { fmtUSD, fmtNum } from '../utils/formatters'
+import { fmtUSD } from '../utils/formatters'
 
 const store = useCatalogoStore()
 const subtabs = [{ key: 'insumos', label: 'Insumos' }, { key: 'cultivos', label: 'Cultivos' }]
