@@ -5,7 +5,7 @@
         <h2 style="font-size:18px;font-weight:700;margin:0">Costos Contables</h2>
         <span style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:5px 12px;font-size:13px;font-weight:600;color:#2d5a27">📅 {{ store.campania }}</span>
       </div>
-      <q-btn unelevated color="primary" icon="add" label="Agregar lote" @click="openModal('add')"/>
+      <q-btn unelevated color="primary" icon="add" label="Asignar lote a esta campaña" @click="abrirAsignar()"/>
     </div>
 
     <div style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
@@ -17,28 +17,28 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!filtered.length">
-              <td colspan="9" style="padding:24px;text-align:center;color:#9ca3af">Sin lotes para esta campaña.</td>
+            <tr v-if="!filas.length">
+              <td colspan="9" style="padding:24px;text-align:center;color:#9ca3af">Sin lotes asignados a esta campaña. Usá "Asignar lote a esta campaña".</td>
             </tr>
-            <tr v-for="(l, i) in filtered" :key="l.id" :style="{background:i%2===0?'#fff':'#fafaf9',borderBottom:'1px solid #f0ede8'}">
-              <td style="padding:8px 12px;font-weight:600;font-size:13px">{{ getLoteName(l) }}</td>
-              <td style="padding:8px 12px"><CultivoBadge :lote="l"/></td>
-              <td style="padding:8px 12px;font-size:13px">{{ parseFloat(l.ha)||0 }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#dc2626">{{ fmtUSD(calcLote(l).costoHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px">{{ fmtUSD(calcLote(l).costoHa*(parseFloat(l.ha)||0)) }}</td>
-              <td style="padding:8px 12px;font-size:13px;color:#2d5a27;font-weight:600">{{ fmtUSD(calcLote(l).ingresoHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:calcLote(l).margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(calcLote(l).margenHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:calcLote(l).margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(calcLote(l).margenHa*(parseFloat(l.ha)||0)) }}</td>
+            <tr v-for="(row, i) in filas" :key="row.a.id" :style="{background:i%2===0?'#fff':'#fafaf9',borderBottom:'1px solid #f0ede8'}">
+              <td style="padding:8px 12px;font-weight:600;font-size:13px">{{ row.nombre }}</td>
+              <td style="padding:8px 12px"><CultivoBadge :lote="row.a"/></td>
+              <td style="padding:8px 12px;font-size:13px">{{ fmtNum(row.ha) }}</td>
+              <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#dc2626">{{ fmtUSD(row.calc.costoHa) }}</td>
+              <td style="padding:8px 12px;font-size:13px">{{ fmtUSD(row.calc.costoHa*row.ha) }}</td>
+              <td style="padding:8px 12px;font-size:13px;color:#2d5a27;font-weight:600">{{ fmtUSD(row.calc.ingresoHa) }}</td>
+              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(row.calc.margenHa) }}</td>
+              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(row.calc.margenHa*row.ha) }}</td>
               <td style="padding:8px 12px">
                 <div style="display:flex;gap:4px">
-                  <button @click="openModal('detail',l)" style="padding:3px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer;font-size:11px;color:#1d4ed8">Ver</button>
-                  <button @click="openModal('edit',l)"   style="padding:3px 8px;background:#f0fdf4;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-size:11px;color:#166534">Editar</button>
-                  <button @click="delId=l.id"            style="padding:3px 8px;background:#fff1f2;border:1px solid #fecaca;border-radius:5px;cursor:pointer;font-size:11px;color:#dc2626">×</button>
+                  <button @click="verRow=row" style="padding:3px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer;font-size:11px;color:#1d4ed8">Ver</button>
+                  <button @click="editar(row)" style="padding:3px 8px;background:#f0fdf4;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-size:11px;color:#166534">Editar</button>
+                  <button @click="bajaRow=row" style="padding:3px 8px;background:#fff1f2;border:1px solid #fecaca;border-radius:5px;cursor:pointer;font-size:11px;color:#dc2626" title="Dar de baja de esta campaña">⊘ Baja</button>
                 </div>
               </td>
             </tr>
           </tbody>
-          <tfoot v-if="filtered.length">
+          <tfoot v-if="filas.length">
             <tr style="background:#2d5a27">
               <td colspan="2" style="padding:9px 12px;color:#fff;font-weight:700;font-size:13px">TOTALES</td>
               <td style="padding:9px 12px;color:#fff;font-weight:700">{{ totHA.toLocaleString('es-AR') }}</td>
@@ -54,21 +54,18 @@
       </div>
     </div>
 
-    <!-- Detail modal -->
-    <q-dialog v-if="modal?.mode==='detail'" :model-value="true" @hide="modal=null">
+    <!-- Detalle -->
+    <q-dialog v-if="verRow" :model-value="true" @hide="verRow=null">
       <q-card style="width:640px;max-width:95vw;border-radius:14px;padding:28px">
         <div class="row items-center justify-between q-mb-md">
-          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Detalle: {{ getLoteName(modal.lote) }}</h2>
-          <q-btn flat round dense icon="close" @click="modal=null"/>
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Detalle: {{ verRow.nombre }}</h2>
+          <q-btn flat round dense icon="close" @click="verRow=null"/>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
           <div v-for="[lab,val,c] in detailStats" :key="lab" style="background:#f9fafb;border-radius:8px;padding:8px 12px">
             <p style="font-size:10px;color:#9ca3af">{{ lab }}</p>
             <p :style="{fontWeight:700,color:c||'#111',fontSize:'15px'}">{{ val }}</p>
           </div>
-        </div>
-        <div v-if="modal.lote.notas" style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:13px">
-          <b>Notas: </b>{{ modal.lote.notas }}
         </div>
         <div v-if="pieData.length" style="display:flex;gap:16px;align-items:center;margin-top:14px">
           <SvgDonut :data="pieData" :width="170" :height="170" :inner-r="42" :outer-r="78" :tooltip-fmt="v=>fmtUSD(v)+'/ha'"/>
@@ -82,31 +79,30 @@
             </div>
           </div>
         </div>
-        <div class="row justify-end q-mt-md">
-          <q-btn flat label="Cerrar" @click="modal=null"/>
-        </div>
+        <div class="row justify-end q-mt-md"><q-btn flat label="Cerrar" @click="verRow=null"/></div>
       </q-card>
     </q-dialog>
 
-    <!-- Add/Edit modal -->
-    <q-dialog v-if="modal?.mode==='add'||modal?.mode==='edit'" :model-value="true" @hide="modal=null">
-      <q-card style="width:680px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
+    <!-- Asignar / Editar -->
+    <q-dialog v-if="asignarModal" :model-value="true" @hide="asignarModal=null">
+      <q-card style="width:700px;max-width:95vw;border-radius:14px;padding:28px;max-height:92vh;overflow-y:auto">
         <div class="row items-center justify-between q-mb-md">
-          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">{{ modal.mode==='edit'?'Editar lote':'Agregar lote' }}</h2>
-          <q-btn flat round dense icon="close" @click="modal=null"/>
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">{{ asignarModal.initial ? 'Editar asignación' : 'Asignar lote a la campaña' }}</h2>
+          <q-btn flat round dense icon="close" @click="asignarModal=null"/>
         </div>
-        <LoteForm :initial="modal.lote" @save="onSave" @cancel="modal=null"/>
+        <AsignarLoteForm :campania="store.campania" :initial="asignarModal.initial" @save="onSaveAsignacion" @cancel="asignarModal=null"/>
       </q-card>
     </q-dialog>
 
-    <!-- Confirm delete -->
-    <q-dialog v-if="delId" :model-value="true" @hide="delId=null">
-      <q-card style="width:320px;border-radius:12px;padding:28px;text-align:center">
-        <p style="font-size:16px;font-weight:700;margin-bottom:8px">¿Eliminar?</p>
-        <p style="font-size:13px;color:#6b7280;margin-bottom:20px">Esta acción no se puede deshacer.</p>
+    <!-- Dar de baja -->
+    <q-dialog v-if="bajaRow" :model-value="true" @hide="bajaRow=null">
+      <q-card style="width:380px;border-radius:12px;padding:26px;text-align:center">
+        <q-icon name="visibility_off" size="28px" color="negative"/>
+        <p style="font-size:16px;font-weight:700;margin:8px 0 6px">Dar de baja de la campaña</p>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:18px">Se quita <b>«{{ bajaRow.nombre }}»</b> de <b>{{ store.campania }}</b>. El lote sigue en el catastro para otras campañas.</p>
         <div class="row justify-center q-gutter-sm">
-          <q-btn flat label="Cancelar" @click="delId=null"/>
-          <q-btn unelevated color="negative" label="Eliminar" @click="confirmDel"/>
+          <q-btn flat label="Cancelar" @click="bajaRow=null"/>
+          <q-btn unelevated color="negative" label="Dar de baja" @click="confirmarBaja"/>
         </div>
       </q-card>
     </q-dialog>
@@ -116,29 +112,40 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
-import LoteForm    from '../components/LoteForm.vue'
+import { useLotesMaestroStore } from '../stores/lotesMaestro'
+import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import { getCultivoColor } from '../utils/constants'
-import { calcLote, getLoteName } from '../utils/calculations'
-import { fmtUSD, fmtK } from '../utils/formatters'
+import { calcLote } from '../utils/calculations'
+import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
-const store    = useMainStore()
-const modal    = ref(null)
-const delId    = ref(null)
-const headers  = ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
+const store   = useMainStore()
+const lmStore = useLotesMaestroStore()
+const headers = ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
 
-const filtered = computed(() => store.lotes.filter(l => l.campaña === store.campania))
-const totHA    = computed(() => filtered.value.reduce((s, l) => s + (parseFloat(l.ha) || 0), 0))
-const totC     = computed(() => filtered.value.reduce((s, l) => s + calcLote(l).costoHa  * (parseFloat(l.ha) || 0), 0))
-const totI     = computed(() => filtered.value.reduce((s, l) => s + calcLote(l).ingresoHa * (parseFloat(l.ha) || 0), 0))
-const totM     = computed(() => totI.value - totC.value)
+const asignarModal = ref(null)
+const verRow  = ref(null)
+const bajaRow = ref(null)
+
+const filas = computed(() => store.asignaciones
+  .filter(a => a.campaña === store.campania)
+  .map(a => {
+    const lote = lmStore.byId(a.loteId)
+    return { a, nombre: lote?.nombre || '—', ha: parseFloat(lote?.ha) || 0, calc: calcLote(a) }
+  })
+  .sort((x, y) => x.nombre.localeCompare(y.nombre)))
+
+const totHA = computed(() => filas.value.reduce((s, r) => s + r.ha, 0))
+const totC  = computed(() => filas.value.reduce((s, r) => s + r.calc.costoHa  * r.ha, 0))
+const totI  = computed(() => filas.value.reduce((s, r) => s + r.calc.ingresoHa * r.ha, 0))
+const totM  = computed(() => totI.value - totC.value)
 
 const detailStats = computed(() => {
-  if (!modal.value?.lote) return []
-  const l = modal.value.lote, calc = calcLote(l), ha = parseFloat(l.ha) || 0
+  if (!verRow.value) return []
+  const { a, ha, calc } = verRow.value
   return [
-    ['Campaña', l.campaña], ['Ha', `${ha} ha`], ['Tipo', l.tipoSiembra==='doble'?'🌾☀️ Doble':'🌱 Simple'],
+    ['Campaña', a.campaña], ['Ha', `${fmtNum(ha)} ha`], ['Tipo', a.tipoSiembra==='doble'?'🌾☀️ Doble':'🌱 Simple'],
     ['Costo/ha',  fmtUSD(calc.costoHa),  '#dc2626'],
     ['Ingreso/ha',fmtUSD(calc.ingresoHa),'#2d5a27'],
     ['Margen/ha', fmtUSD(calc.margenHa), calc.margenHa>=0?'#3a6b35':'#dc2626'],
@@ -147,20 +154,23 @@ const detailStats = computed(() => {
 })
 
 const COLORS = ['#4a7c59','#e8a838','#5b8dd9','#d44f8e','#e05c3a','#c4893a','#2e7d5e','#9ca3af','#888']
+const itemVal = it => parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0
 const pieData = computed(() => {
-  if (!modal.value?.lote) return []
-  const l = modal.value.lote, calc = calcLote(l)
-  if (l.tipoSiembra === 'doble') return [
-    { name: l.cultivoInvernal.nombre, value: calc.inv.costoHa, color: getCultivoColor(l.cultivoInvernal.nombre) },
-    { name: l.cultivoEstival.nombre,  value: calc.est.costoHa, color: getCultivoColor(l.cultivoEstival.nombre) },
-  ]
-  return (l.cultivo?.itemsCosto || []).map((it, i) => ({ name: it.nombre, value: parseFloat(it.costoHaUsd) || 0, color: COLORS[i % 9] })).filter(d => d.value > 0)
+  if (!verRow.value) return []
+  const a = verRow.value.a, calc = verRow.value.calc
+  if (a.tipoSiembra === 'doble') return [
+    { name: a.cultivoInvernal?.nombre, value: calc.inv.costoHa, color: getCultivoColor(a.cultivoInvernal?.nombre) },
+    { name: a.cultivoEstival?.nombre,  value: calc.est.costoHa, color: getCultivoColor(a.cultivoEstival?.nombre) },
+  ].filter(d => d.value > 0)
+  return (a.cultivo?.itemsCosto || []).map((it, i) => ({ name: it.nombreManual || it.nombre || 'Ítem', value: itemVal(it), color: COLORS[i % 9] })).filter(d => d.value > 0)
 })
 
-function openModal(mode, lote = null) { modal.value = { mode, lote } }
-function onSave(f) {
-  modal.value.lote ? store.updLote(modal.value.lote.id, f) : store.addLote(f)
-  modal.value = null
+function abrirAsignar() { asignarModal.value = { initial: null } }
+function editar(row)    { asignarModal.value = { initial: row.a } }
+async function onSaveAsignacion(out) {
+  if (out.id) await store.updAsignacion(out.id, out)
+  else await store.addAsignacion(out)
+  asignarModal.value = null
 }
-function confirmDel() { store.delLote(delId.value); delId.value = null }
+async function confirmarBaja() { await store.delAsignacion(bajaRow.value.a.id); bajaRow.value = null }
 </script>

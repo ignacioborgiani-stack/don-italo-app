@@ -42,6 +42,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useMainStore } from '../stores/main'
+import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
 import { getCultivoColor } from '../utils/constants'
@@ -49,7 +50,11 @@ import { calcLote, getCultivoLabel, getLoteName } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
-const filtered = computed(() => store.lotes.filter(l => l.campaña === store.campania))
+const lmStore  = useLotesMaestroStore()
+// Asignaciones de la campaña activa, con ha y nombre inyectados desde el catastro.
+const filtered = computed(() => store.asignaciones
+  .filter(a => a.campaña === store.campania)
+  .map(a => { const lote = lmStore.byId(a.loteId); return { ...a, ha: parseFloat(lote?.ha) || 0, nombre: lote?.nombre || '—' } }))
 
 const haFisicas      = computed(() => filtered.value.reduce((s, l) => s + (parseFloat(l.ha) || 0), 0))
 const haSembradas    = computed(() => filtered.value.reduce((s, l) => s + (parseFloat(l.ha) || 0) * (l.tipoSiembra === 'doble' ? 2 : 1), 0))

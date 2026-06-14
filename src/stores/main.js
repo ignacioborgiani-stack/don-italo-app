@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
-import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb } from '../utils/mappers'
+import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb } from '../utils/mappers'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
 
@@ -25,6 +25,7 @@ export const useMainStore = defineStore('main', () => {
   const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
   const tipoCambio   = ref(1000)   // ARS por USD (para insumos cotizados en ARS)
   const lotes        = ref([])
+  const asignaciones = ref([])   // asignaciones_campana (lote ↔ campaña ↔ cultivo + costos)
   const proyecciones = ref([])
   const stocks       = ref([])
   const chatMessages = ref([])
@@ -53,6 +54,7 @@ export const useMainStore = defineStore('main', () => {
       try { await useCatalogoStore().loadCatalogo() } catch (e) { console.warn('[catalogo] tabla no disponible:', e?.message) }
       try { await useCatalogoStore().loadCultivos() } catch (e) { console.warn('[catalogo_cultivos] tabla no disponible:', e?.message) }
       try { await useLotesMaestroStore().loadLotesMaestro() } catch (e) { console.warn('[lotes_maestro] tabla no disponible:', e?.message) }
+      try { await loadAsignaciones() } catch (e) { console.warn('[asignaciones_campana] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
@@ -112,11 +114,39 @@ export const useMainStore = defineStore('main', () => {
   }
 
   function resetData() {
-    lotes.value = []; proyecciones.value = []; stocks.value = []
+    lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
     chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
     useCatalogoStore().reset()
     useLotesMaestroStore().reset()
+  }
+
+  // ── Asignaciones por campaña (lote ↔ campaña ↔ cultivo + costos) ──
+  async function loadAsignaciones() {
+    const { data, error } = await supabase.from('asignaciones_campana').select('*')
+    if (error) throw error
+    asignaciones.value = (data || []).map(asignacionFromDb)
+  }
+
+  async function addAsignacion(a) {
+    const userId = getUid()
+    const n = { ...a, id: uid() }
+    const { data, error } = await supabase.from('asignaciones_campana').insert({ ...asignacionToDb(n), user_id: userId }).select().single()
+    if (error) throw error
+    asignaciones.value = [...asignaciones.value, asignacionFromDb(data)]
+  }
+
+  async function updAsignacion(id, delta) {
+    const upd = { ...asignaciones.value.find(a => a.id === id), ...delta }
+    const { error } = await supabase.from('asignaciones_campana').update(asignacionToDb(upd)).eq('id', id)
+    if (error) throw error
+    asignaciones.value = asignaciones.value.map(a => a.id === id ? upd : a)
+  }
+
+  async function delAsignacion(id) {
+    const { error } = await supabase.from('asignaciones_campana').delete().eq('id', id)
+    if (error) throw error
+    asignaciones.value = asignaciones.value.filter(a => a.id !== id)
   }
 
   // ── Lotes ─────────────────────────────────────────────────────
@@ -266,10 +296,11 @@ export const useMainStore = defineStore('main', () => {
   function setTipoCambio(v) { tipoCambio.value = parseFloat(v) || tipoCambio.value }
 
   return {
-    sbConnected, campania, campanas, tipoCambio, lotes, proyecciones, stocks, chatMessages, apiKey,
+    sbConnected, campania, campanas, tipoCambio, lotes, asignaciones, proyecciones, stocks, chatMessages, apiKey,
     loadData, cargarDatosDemo, resetData,
     loadCampanas, addCampana, delCampana, setTipoCambio,
     addLote, updLote, delLote,
+    loadAsignaciones, addAsignacion, updAsignacion, delAsignacion,
     updProy,
     addStock, updStock, delStock, moveStock,
     addMsg, setApiKey, setCampania,

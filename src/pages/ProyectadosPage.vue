@@ -63,6 +63,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
+import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import SvgHBar from '../components/charts/SvgHBar.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
@@ -70,12 +71,17 @@ import { calcCostoHa, calcIngresoHa } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
+const lmStore  = useLotesMaestroStore()
 const editProy = ref(null)
 
-const calcHaCultivo = cultivo => store.lotes.filter(l => l.campaña === store.campania).reduce((s, l) => {
-  if (l.tipoSiembra === 'doble') return s + ((l.cultivoInvernal?.nombre === cultivo || l.cultivoEstival?.nombre === cultivo) ? (parseFloat(l.ha) || 0) : 0)
-  return l.cultivo?.nombre === cultivo ? s + (parseFloat(l.ha) || 0) : s
-}, 0)
+// Ha por cultivo = suma de ha de los lotes ASIGNADOS a la campaña activa con ese cultivo
+const calcHaCultivo = cultivo => store.asignaciones
+  .filter(a => a.campaña === store.campania)
+  .reduce((s, a) => {
+    const ha = parseFloat(lmStore.byId(a.loteId)?.ha) || 0
+    if (a.tipoSiembra === 'doble') return s + ((a.cultivoInvernal?.nombre === cultivo || a.cultivoEstival?.nombre === cultivo) ? ha : 0)
+    return a.cultivo?.nombre === cultivo ? s + ha : s
+  }, 0)
 
 const barData  = computed(() => store.proyecciones.map(p => {
   const ha = calcHaCultivo(p.cultivo), costoHa = calcCostoHa({ itemsCosto: p.itemsCosto || [] }), ingHa = calcIngresoHa(p)
