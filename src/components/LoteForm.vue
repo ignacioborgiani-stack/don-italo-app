@@ -91,7 +91,7 @@ function finalizarCultivo(c) {
   if (!c) return c
   const itemsCosto = (c.itemsCosto || []).map(it => ({
     ...it,
-    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, store.tipoCambio, c.rendimientoQq, c.precioVentaTn),
+    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, store.tipoCambio, c.rendimientoQq, c.precioVentaTn, catStore.labores),
   }))
   return { ...c, itemsCosto }
 }

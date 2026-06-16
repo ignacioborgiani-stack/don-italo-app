@@ -2,14 +2,15 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
-import { MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS } from '../utils/catalogoData'
-import { catToDb, catFromDb, cultivoRefToDb, cultivoRefFromDb } from '../utils/mappers'
+import { MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS, MOCK_CATALOGO_LABORES } from '../utils/catalogoData'
+import { catToDb, catFromDb, cultivoRefToDb, cultivoRefFromDb, laborToDb, laborFromDb } from '../utils/mappers'
 
 const uid = () => crypto.randomUUID()
 
 export const useCatalogoStore = defineStore('catalogo', () => {
   const items    = ref([])   // insumos
   const cultivos = ref([])
+  const labores  = ref([])
 
   function getUid() { return useAuthStore().usuario?.id }
 
@@ -105,12 +106,56 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     cultivos.value = cultivos.value.filter(c => c.id !== id)
   }
 
-  function reset() { items.value = []; cultivos.value = [] }
+  // ── Labores y servicios ───────────────────────────────────────
+  const ordenarLabores = arr => [...arr].sort((a, b) =>
+    (a.categoria || '').localeCompare(b.categoria || '') || (a.nombre || '').localeCompare(b.nombre || ''))
+
+  async function loadLabores() {
+    const { data, error } = await supabase.from('catalogo_labores').select('*').order('nombre')
+    if (error) throw error
+    labores.value = ordenarLabores((data || []).map(laborFromDb))
+  }
+
+  async function cargarLaboresReferencia() {
+    const userId = getUid()
+    const rows = MOCK_CATALOGO_LABORES.map(l => ({ ...laborToDb({ ...l, id: uid() }), user_id: userId }))
+    const { data, error } = await supabase.from('catalogo_labores').insert(rows).select()
+    if (error) throw error
+    labores.value = ordenarLabores((data || []).map(laborFromDb))
+    return labores.value.length
+  }
+
+  async function addLabor(l) {
+    const userId = getUid()
+    const n = { ...l, id: uid() }
+    const { data, error } = await supabase.from('catalogo_labores').insert({ ...laborToDb(n), user_id: userId }).select().single()
+    if (error) throw error
+    labores.value = ordenarLabores([...labores.value, laborFromDb(data)])
+    return laborFromDb(data)
+  }
+
+  async function updLabor(id, delta) {
+    const upd = { ...labores.value.find(l => l.id === id), ...delta }
+    const { error } = await supabase.from('catalogo_labores').update(laborToDb(upd)).eq('id', id)
+    if (error) throw error
+    labores.value = ordenarLabores(labores.value.map(l => l.id === id ? upd : l))
+  }
+
+  async function delLabor(id) {
+    const { error } = await supabase.from('catalogo_labores').delete().eq('id', id)
+    if (error) throw error
+    labores.value = labores.value.filter(l => l.id !== id)
+  }
+
+  function laborById(id) { return labores.value.find(l => l.id === id) || null }
+
+  function reset() { items.value = []; cultivos.value = []; labores.value = [] }
 
   return {
-    items, cultivos,
+    items, cultivos, labores,
     loadCatalogo, cargarInsumosReferencia, cargarCatalogoDemo, addItem, updItem, delItem, byId,
     loadCultivos, cargarCultivosReferencia, addCultivo, updCultivo, delCultivo,
+    loadLabores, cargarLaboresReferencia, addLabor, updLabor, delLabor, laborById,
     reset,
   }
 })

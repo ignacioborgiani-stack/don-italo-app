@@ -52,7 +52,7 @@ const main = useMainStore()
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 
 const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) =>
-  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn), 0))
+  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn, catStore.labores), 0))
 const ingHa    = computed(() => calcIngresoHa(props.cultivoObj))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 

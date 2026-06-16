@@ -11,13 +11,15 @@
       v-for="(it, i) in items" :key="it.id || i"
       :item="it"
       :catalogo="catalogo"
+      :labores="labores"
       :cultivos-precio="cultivosPrecio"
       :tipo-cambio="tipoCambio"
       :rendimiento-qq="rendimientoQq"
       :precio-venta-tn="precioVentaTn"
       @update:item="upd(i, $event)"
       @remove="del(i)"
-      @crear-insumo="onCrear(i, $event)"
+      @crear-insumo="onCrearInsumo(i, $event)"
+      @crear-labor="onCrearLabor(i, $event)"
     />
 
     <div v-if="items.length" style="text-align:right;font-size:12px;color:#374151;margin-top:4px">
@@ -25,13 +27,24 @@
     </div>
 
     <!-- Crear insumo nuevo sin cerrar este modal -->
-    <q-dialog v-if="crearModal" :model-value="true" @hide="crearModal=null">
+    <q-dialog v-if="crearInsumo" :model-value="true" @hide="crearInsumo=null">
       <q-card style="width:640px;max-width:95vw;border-radius:14px;padding:26px;max-height:92vh;overflow-y:auto">
         <div class="row items-center justify-between q-mb-md">
           <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Nuevo insumo</h2>
-          <q-btn flat round dense icon="close" @click="crearModal=null"/>
+          <q-btn flat round dense icon="close" @click="crearInsumo=null"/>
         </div>
-        <InsumoForm :initial="crearModal.initial" :familias="familias" :insumos="catalogo" @save="onSaveInsumo" @cancel="crearModal=null"/>
+        <InsumoForm :initial="crearInsumo.initial" :familias="familias" :insumos="catalogo" @save="onSaveInsumo" @cancel="crearInsumo=null"/>
+      </q-card>
+    </q-dialog>
+
+    <!-- Crear labor nueva sin cerrar este modal -->
+    <q-dialog v-if="crearLabor" :model-value="true" @hide="crearLabor=null">
+      <q-card style="width:560px;max-width:95vw;border-radius:14px;padding:26px;max-height:92vh;overflow-y:auto">
+        <div class="row items-center justify-between q-mb-md">
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Nueva labor / servicio</h2>
+          <q-btn flat round dense icon="close" @click="crearLabor=null"/>
+        </div>
+        <LaborForm :initial="crearLabor.initial" :categorias="categoriasLabores" @save="onSaveLabor" @cancel="crearLabor=null"/>
       </q-card>
     </q-dialog>
   </div>
@@ -41,10 +54,11 @@
 import { computed, ref } from 'vue'
 import ItemCostoRow from './ItemCostoRow.vue'
 import InsumoForm from './InsumoForm.vue'
+import LaborForm from './LaborForm.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
-import { CATEGORIA_A_FAMILIAS, calcularCostoItemHa } from '../utils/calculations'
-import { FAMILIAS_BASE } from '../utils/catalogoData'
+import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, calcularCostoItemHa } from '../utils/calculations'
+import { FAMILIAS_BASE, CATEGORIAS_LABORES } from '../utils/catalogoData'
 import { fmtUSD } from '../utils/formatters'
 
 const props = defineProps({
@@ -59,33 +73,53 @@ const main = useMainStore()
 const uid = () => crypto.randomUUID()
 
 const catalogo = computed(() => catStore.items)
+const labores = computed(() => catStore.labores)
 const tipoCambio = computed(() => main.tipoCambio)
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 const familias = computed(() => [...new Set([...FAMILIAS_BASE, ...catalogo.value.map(i => i.familia)])].sort((a, b) => a.localeCompare(b)))
+const categoriasLabores = computed(() => [...new Set([...CATEGORIAS_LABORES, ...labores.value.map(l => l.categoria)])])
 
-const total = computed(() => props.items.reduce((s, it) =>
-  s + calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn), 0))
+const calc = it => calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn, labores.value)
+const total = computed(() => props.items.reduce((s, it) => s + calc(it), 0))
 
 function add() {
   emit('update:items', [...props.items, {
-    id: uid(), categoria: 'fertilizante', insumoId: null, nombreManual: '',
+    id: uid(), categoria: 'fertilizante', insumoId: null, laborId: null, nombreManual: '',
     dosis: '', unidadDosis: '', costoHaCalculado: 0, modoEspecial: false, parametroEspecial: null,
   }])
 }
 function upd(i, it) { emit('update:items', props.items.map((x, idx) => idx === i ? it : x)) }
 function del(i)     { emit('update:items', props.items.filter((_, idx) => idx !== i)) }
 
-const crearModal = ref(null)
-function onCrear(i, categoria) {
+// Crear insumo en línea
+const crearInsumo = ref(null)
+function onCrearInsumo(i, categoria) {
   const fams = CATEGORIA_A_FAMILIAS[categoria]
-  crearModal.value = { index: i, initial: { familia: (fams && fams[0]) || 'Otros' } }
+  crearInsumo.value = { index: i, initial: { familia: (fams && fams[0]) || 'Otros' } }
 }
 async function onSaveInsumo(form) {
   const nuevo = await catStore.addItem(form)
-  const i = crearModal.value.index
-  const base = { ...props.items[i], insumoId: nuevo.id, nombreManual: nuevo.nombre, unidadDosis: '' }
-  base.costoHaCalculado = calcularCostoItemHa(base, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn)
+  const i = crearInsumo.value.index
+  const base = { ...props.items[i], insumoId: nuevo.id, nombreManual: nuevo.nombre }
+  base.costoHaCalculado = calc(base)
   upd(i, base)
-  crearModal.value = null
+  crearInsumo.value = null
+}
+
+// Crear labor en línea
+const crearLabor = ref(null)
+function onCrearLabor(i, categoria) {
+  const cats = LABOR_CATEGORIA_MAP[categoria]
+  crearLabor.value = { index: i, initial: { categoria: (cats && cats[0]) || 'Otro' } }
+}
+async function onSaveLabor(form) {
+  const nueva = await catStore.addLabor(form)
+  const i = crearLabor.value.index
+  const base = { ...props.items[i], laborId: nueva.id, nombreManual: nueva.nombre }
+  if (nueva.esPorcentaje) base.dosis = nueva.porcentaje ?? 8
+  else if (nueva.unidadPrecio === 'ha') base.dosis = base.dosis || 1
+  base.costoHaCalculado = calc(base)
+  upd(i, base)
+  crearLabor.value = null
 }
 </script>

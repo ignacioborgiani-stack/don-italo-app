@@ -127,7 +127,7 @@ function finalizar(c) {
   if (!c) return null
   return { ...c, itemsCosto: (c.itemsCosto || []).map(it => ({
     ...it,
-    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, c.rendimientoQq, c.precioVentaTn),
+    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, c.rendimientoQq, c.precioVentaTn, catStore.labores),
   })) }
 }
 

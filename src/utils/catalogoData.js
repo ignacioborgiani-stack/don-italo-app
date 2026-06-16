@@ -110,6 +110,40 @@ const C = (nombre, tipo, precioUsdTn, rendimientoEstimadoQq, extra = {}) => ({
   ...extra,
 })
 
+// ── Labores y servicios ───────────────────────────────────────────
+export const CATEGORIAS_LABORES = ['Cosecha', 'Aplicación', 'Labranza', 'Flete', 'Seguro', 'Arrendamiento', 'Otro']
+
+const L = (nombre, categoria, precio, unidadPrecio, extra = {}) =>
+  ({ nombre, categoria, precio, moneda: 'USD', unidadPrecio, esPorcentaje: false, porcentaje: null, notas: '', ...extra })
+const Lpct = (nombre, porcentaje = 8) =>
+  ({ nombre, categoria: 'Cosecha', precio: 0, moneda: 'USD', unidadPrecio: 'ha', esPorcentaje: true, porcentaje, notas: '' })
+
+export const MOCK_CATALOGO_LABORES = [
+  // ── Cosecha (% del valor cosechado) ──
+  Lpct('Cosecha Soja 1era'), Lpct('Cosecha Soja 2da'),
+  Lpct('Cosecha Maíz 1era'), Lpct('Cosecha Maíz 2da'),
+  Lpct('Cosecha Trigo'), Lpct('Cosecha Girasol'),
+  Lpct('Cosecha Arveja'), Lpct('Cosecha Carinata'),
+  // ── Aplicación (USD/ha) ──
+  L('Aplicación terrestre', 'Aplicación', 10, 'ha'),
+  L('Aplicación aérea', 'Aplicación', 14, 'ha'),
+  L('Fertilización al voleo', 'Aplicación', 10, 'ha'),
+  // ── Labranza (USD/ha) ──
+  L('Labor siembra', 'Labranza', 94, 'ha'),
+  L('Subsolador', 'Labranza', 85, 'ha', { notas: 'Se amortiza en 4 campañas' }),
+  // ── Flete (USD/tn) ──
+  L('Flete zona Casilda 85 km', 'Flete', 15.75, 'tn'),
+  // ── Seguro (USD/ha) ──
+  L('Seguro Soja 1era', 'Seguro', 40.46, 'ha', { notas: 'Cubre granizo e incendio, rinde asegurado 3.5 tn' }),
+  L('Seguro Soja 2da', 'Seguro', 28.90, 'ha'),
+  L('Seguro Maíz 1era', 'Seguro', 46.36, 'ha'),
+  L('Seguro Maíz 2da', 'Seguro', 23.18, 'ha'),
+  L('Seguro Trigo', 'Seguro', 48.07, 'ha'),
+  L('Seguro Girasol', 'Seguro', 71.09, 'ha'),
+  L('Seguro Arveja', 'Seguro', 24.56, 'ha'),
+  L('Seguro Carinata', 'Seguro', 40.77, 'ha'),
+]
+
 export const MOCK_CATALOGO_CULTIVOS = [
   C('Soja', 'estival', 330, 47, { cosechaPorc: 8, comercializacionPorc: 0.5, comercializacionFijaUsdTn: 720, fleteUsdTn: 74, seguroUsdHa: 40, rendimientoAseguradoQq: 35 }),
   C('Maíz', 'estival', 181, 110, { cosechaPorc: 8, comercializacionPorc: 0.5, comercializacionFijaUsdTn: 720, fleteUsdTn: 173, seguroUsdHa: 46, rendimientoAseguradoQq: 80 }),

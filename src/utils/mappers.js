@@ -116,6 +116,32 @@ export const catFromDb = r => ({
   notas: r.notas || '',
 })
 
+// ── Catálogo de labores y servicios ───────────────────────────────
+export const laborToDb = l => ({
+  id: l.id,
+  nombre: l.nombre,
+  categoria: l.categoria || 'Otro',
+  precio: parseFloat(l.precio) || 0,
+  moneda: l.moneda || 'USD',
+  unidad_precio: l.unidadPrecio || 'ha',
+  es_porcentaje: !!l.esPorcentaje,
+  porcentaje: (l.porcentaje === '' || l.porcentaje == null) ? null : parseFloat(l.porcentaje),
+  notas: l.notas || '',
+  activo: l.activo === false ? false : true,
+})
+export const laborFromDb = r => ({
+  id: r.id,
+  nombre: r.nombre,
+  categoria: r.categoria || 'Otro',
+  precio: parseFloat(r.precio) || 0,
+  moneda: r.moneda || 'USD',
+  unidadPrecio: r.unidad_precio || 'ha',
+  esPorcentaje: !!r.es_porcentaje,
+  porcentaje: r.porcentaje == null ? null : parseFloat(r.porcentaje),
+  notas: r.notas || '',
+  activo: r.activo === false ? false : true,
+})
+
 // ── Catálogo de cultivos (precios y rindes de referencia) ─────────
 export const cultivoRefToDb = c => ({
   id: c.id,

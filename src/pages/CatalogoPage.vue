@@ -62,7 +62,7 @@
     </div>
 
     <!-- ════════ CULTIVOS ════════ -->
-    <div v-else>
+    <div v-else-if="subtab==='cultivos'">
       <div class="row items-center justify-end q-mb-md">
         <q-btn v-if="cultivos.length" unelevated color="primary" icon="add" label="Agregar cultivo" @click="addCultivoModal()"/>
       </div>
@@ -90,6 +90,53 @@
       </div>
     </div>
 
+    <!-- ════════ LABORES ════════ -->
+    <div v-else>
+      <div v-if="!labores.length" style="background:#fff;border:1px dashed #d4cfc4;border-radius:12px;padding:36px;text-align:center;color:#6b7280">
+        <p style="margin:0 0 14px">No hay labores cargadas.</p>
+        <q-btn unelevated color="primary" :loading="cargando" :label="`Cargar datos de referencia (${nLaboresRef} labores)`" @click="seedLabores"/>
+        <p v-if="seedError" style="color:#dc2626;font-size:12px;margin-top:10px">{{ seedError }}</p>
+      </div>
+
+      <template v-else>
+        <div v-for="cat in catLaboresConItems" :key="cat" style="background:#fff;border:1px solid #d4cfc4;border-radius:10px;margin-bottom:10px;overflow:hidden">
+          <button @click="toggleL(cat)" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f0fdf4;border:none;cursor:pointer;font-family:inherit">
+            <span style="font-weight:700;font-size:14px;color:#2d5a27">{{ cat }} <span style="color:#9ca3af;font-weight:500">· {{ porCategoria[cat].length }}</span></span>
+            <span style="color:#2d5a27">{{ abiertasL.has(cat) ? '▲' : '▼' }}</span>
+          </button>
+          <div v-if="abiertasL.has(cat)" style="padding:6px 10px 12px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="color:#9ca3af;font-size:11px;text-transform:uppercase">
+                  <th style="text-align:left;padding:6px 8px">Nombre</th>
+                  <th style="text-align:right;padding:6px 8px">Precio</th>
+                  <th style="text-align:left;padding:6px 8px">Notas</th>
+                  <th style="text-align:right;padding:6px 8px">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="l in porCategoria[cat]" :key="l.id" :style="{borderTop:'1px solid #f0ede8',opacity:l.activo?1:0.5}">
+                  <td style="padding:7px 8px;font-weight:600">{{ l.nombre }}<span v-if="!l.activo" style="font-size:10px;color:#9ca3af;font-weight:400"> (archivado)</span></td>
+                  <td style="padding:7px 8px;text-align:right;white-space:nowrap">
+                    <span v-if="l.esPorcentaje" style="color:#1d4ed8;font-weight:600">{{ l.porcentaje }}% del valor</span>
+                    <span v-else>{{ fmtPrecio(l.precio) }} {{ l.moneda }}/{{ l.unidadPrecio }}</span>
+                  </td>
+                  <td style="padding:7px 8px;color:#9ca3af;font-size:12px">{{ l.notas }}</td>
+                  <td style="padding:7px 8px;text-align:right;white-space:nowrap">
+                    <button @click="editarLabor(l)" style="padding:3px 8px;background:#f0fdf4;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-size:11px;color:#166534;margin-left:4px">Editar</button>
+                    <button @click="archivarLabor(l)" style="padding:3px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;cursor:pointer;font-size:11px;color:#92400e;margin-left:4px">{{ l.activo ? 'Archivar' : 'Activar' }}</button>
+                    <button @click="pedirBorrarLabor(l)" style="padding:3px 8px;background:#fff1f2;border:1px solid #fecaca;border-radius:5px;cursor:pointer;font-size:11px;color:#dc2626;margin-left:4px">×</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <button @click="agregarEnCategoria(cat)" style="margin-top:8px;padding:5px 12px;background:#fff;border:1.5px solid #3a6b35;border-radius:6px;cursor:pointer;color:#2d5a27;font-size:12px;font-weight:600">+ Agregar labor</button>
+          </div>
+        </div>
+        <q-btn flat color="primary" label="+ Nueva categoría" @click="agregarNuevaCategoria" style="margin-top:4px"/>
+      </template>
+    </div>
+
     <!-- Modal insumo -->
     <q-dialog v-if="insumoModal" :model-value="true" @hide="insumoModal=null">
       <q-card style="width:640px;max-width:95vw;border-radius:14px;padding:26px;max-height:92vh;overflow-y:auto">
@@ -112,6 +159,17 @@
       </q-card>
     </q-dialog>
 
+    <!-- Modal labor -->
+    <q-dialog v-if="laborModal" :model-value="true" @hide="laborModal=null">
+      <q-card style="width:560px;max-width:95vw;border-radius:14px;padding:26px;max-height:92vh;overflow-y:auto">
+        <div class="row items-center justify-between q-mb-md">
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">{{ laborModal.edit ? 'Editar labor' : 'Agregar labor' }}</h2>
+          <q-btn flat round dense icon="close" @click="laborModal=null"/>
+        </div>
+        <LaborForm :initial="laborModal.item" :categorias="catLaboresTodas" @save="onSaveLabor" @cancel="laborModal=null"/>
+      </q-card>
+    </q-dialog>
+
     <!-- Confirmar borrado -->
     <q-dialog v-model="borrarOpen">
       <q-card style="width:340px;border-radius:12px;padding:24px;text-align:center">
@@ -129,23 +187,26 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useCatalogoStore } from '../stores/catalogo'
-import { FAMILIAS_BASE, MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS } from '../utils/catalogoData'
+import { FAMILIAS_BASE, CATEGORIAS_LABORES, MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS, MOCK_CATALOGO_LABORES } from '../utils/catalogoData'
 import InsumoForm from '../components/InsumoForm.vue'
 import CultivoRefForm from '../components/CultivoRefForm.vue'
+import LaborForm from '../components/LaborForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { fmtUSD } from '../utils/formatters'
 
 const store = useCatalogoStore()
-const subtabs = [{ key: 'insumos', label: 'Insumos' }, { key: 'cultivos', label: 'Cultivos' }]
+const subtabs = [{ key: 'insumos', label: 'Insumos' }, { key: 'cultivos', label: 'Cultivos' }, { key: 'labores', label: 'Labores' }]
 const subtab = ref('insumos')
 
 const insumos  = computed(() => store.items)
 const cultivos = computed(() => store.cultivos)
+const labores  = computed(() => store.labores)
 
 const cargando  = ref(false)
 const seedError = ref('')
 const nInsumosRef  = MOCK_CATALOGO_INSUMOS.length
 const nCultivosRef = MOCK_CATALOGO_CULTIVOS.length
+const nLaboresRef  = MOCK_CATALOGO_LABORES.length
 
 // Agrupar por familia
 const porFamilia = computed(() => {
@@ -176,6 +237,35 @@ async function seedCultivos() {
   catch (e) { seedError.value = e.message || 'No se pudo cargar (¿corriste la migración 04?)' }
   finally { cargando.value = false }
 }
+async function seedLabores() {
+  cargando.value = true; seedError.value = ''
+  try { await store.cargarLaboresReferencia(); abiertasL.value = new Set(catLaboresConItems.value) }
+  catch (e) { seedError.value = e.message || 'No se pudo cargar (¿corriste la migración 05?)' }
+  finally { cargando.value = false }
+}
+
+// Labores
+const porCategoria = computed(() => {
+  const g = {}
+  for (const l of labores.value) { (g[l.categoria] ||= []).push(l) }
+  return g
+})
+const catLaboresConItems = computed(() => Object.keys(porCategoria.value).sort((a, b) => a.localeCompare(b)))
+const catLaboresTodas = computed(() => [...new Set([...CATEGORIAS_LABORES, ...Object.keys(porCategoria.value)])])
+const abiertasL = ref(new Set())
+function toggleL(cat) { const s = new Set(abiertasL.value); s.has(cat) ? s.delete(cat) : s.add(cat); abiertasL.value = s }
+
+const laborModal = ref(null)
+function agregarEnCategoria(cat) { laborModal.value = { edit: false, item: { categoria: cat } } }
+function agregarNuevaCategoria() { laborModal.value = { edit: false, item: { categoria: '' } } }
+function editarLabor(l) { laborModal.value = { edit: true, item: l } }
+async function onSaveLabor(form) {
+  if (laborModal.value.edit) await store.updLabor(laborModal.value.item.id, form)
+  else await store.addLabor(form)
+  laborModal.value = null
+}
+async function archivarLabor(l) { await store.updLabor(l.id, { activo: !l.activo }) }
+function pedirBorrarLabor(l) { borrarTarget.value = l; borrarTipo.value = 'labor'; borrarOpen.value = true }
 
 // Insumos CRUD
 const insumoModal = ref(null)
@@ -207,7 +297,8 @@ function pedirBorrar(it) { borrarTarget.value = it; borrarTipo.value = 'insumo';
 function pedirBorrarCultivo(c) { borrarTarget.value = c; borrarTipo.value = 'cultivo'; borrarOpen.value = true }
 async function confirmarBorrado() {
   if (borrarTipo.value === 'insumo') await store.delItem(borrarTarget.value.id)
-  else await store.delCultivo(borrarTarget.value.id)
+  else if (borrarTipo.value === 'cultivo') await store.delCultivo(borrarTarget.value.id)
+  else await store.delLabor(borrarTarget.value.id)
   borrarOpen.value = false
 }
 </script>

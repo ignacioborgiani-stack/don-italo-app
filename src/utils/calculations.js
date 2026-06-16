@@ -13,8 +13,29 @@ export const CATEGORIA_A_FAMILIAS = {
   labor:         ['Labores'],
   otros:         null,   // null = todas las familias
 }
-// Categorías que NO usan catálogo (se calculan por rendimiento/valor).
-export const CATEGORIAS_ESPECIALES = ['cosecha', 'flete', 'arrendamiento']
+// Categoría del ítem → categorías del catálogo de LABORES que se ofrecen.
+export const LABOR_CATEGORIA_MAP = {
+  cosecha: ['Cosecha'],
+  flete:   ['Flete'],
+  labor:   ['Aplicación', 'Labranza'],
+  seguro:  ['Seguro'],
+}
+// Categorías que se resuelven como ítem especial manual (no catálogo).
+export const CATEGORIAS_ESPECIALES = ['arrendamiento']
+
+// Etiqueta de la cantidad para una labor del catálogo.
+export function unidadDosisLabor(labor) {
+  if (!labor) return ''
+  if (labor.esPorcentaje) return '% del valor'
+  switch (labor.unidadPrecio) {
+    case 'tn':     return '× rinde (tn)'
+    case 'qq':     return '× rinde (qq)'
+    case 'ha':     return 'pasadas'
+    case 'viaje':  return 'viajes'
+    case 'unidad': return 'unidades'
+    default:       return ''
+  }
+}
 
 // Unidad de dosis que corresponde a un insumo del catálogo.
 export function unidadDosisInsumo(insumo) {
@@ -33,11 +54,34 @@ export function unidadDosisInsumo(insumo) {
 // Costo USD/ha de un ítem de costo. Resuelve por insumo del catálogo o por modo especial.
 // item: { categoria, insumoId, dosis, modoEspecial, parametroEspecial, costoHaUsd? }
 // catalogo: array de insumos; cultivosPrecio: { [nombre]: precioUsdTn } (para soja en alquiler).
-export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, tipoCambio = 1, rendimientoQq = 0, precioVentaTn = 0) {
+export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, tipoCambio = 1, rendimientoQq = 0, precioVentaTn = 0, labores = []) {
   const rendTn = (parseFloat(rendimientoQq) || 0) / 10
   const precioVenta = parseFloat(precioVentaTn) || 0
 
-  // ── Ítems especiales (cosecha / flete / arrendamiento) ──
+  // ── Labor / servicio del catálogo de labores ──
+  if (item.laborId) {
+    const labor = labores.find(l => l.id === item.laborId)
+    if (!labor) return parseFloat(item.costoHaUsd) || 0
+    if (labor.esPorcentaje) {
+      const porc = (item.dosis != null && item.dosis !== '') ? parseFloat(item.dosis) : parseFloat(labor.porcentaje)
+      return (porc || 0) / 100 * rendTn * precioVenta
+    }
+    const precio = parseFloat(labor.precio) || 0
+    const dosis = parseFloat(item.dosis) || 1
+    let costo
+    switch (labor.unidadPrecio) {
+      case 'tn':     costo = precio * rendTn; break                          // flete: USD/tn × rinde
+      case 'qq':     costo = precio * (parseFloat(rendimientoQq) || 0); break
+      case 'ha':     costo = precio * dosis; break                           // pasadas
+      case 'viaje':
+      case 'unidad': costo = precio * dosis; break
+      default:       costo = precio * dosis
+    }
+    if (labor.moneda === 'ARS') costo = costo / (parseFloat(tipoCambio) || 1)
+    return costo
+  }
+
+  // ── Ítems especiales (arrendamiento) ──
   // Especial por flag explícito o por categoría. Si falta el parámetro,
   // cae al valor viejo (costoHaUsd) para no perder datos existentes.
   const esEspecial = item.modoEspecial || CATEGORIAS_ESPECIALES.includes(item.categoria)

@@ -28,6 +28,7 @@ export const CATEGORIAS = [
   { key: 'labor',         label: 'Labor/Servicio', e: '🚜' },
   { key: 'cosecha',       label: 'Cosecha',        e: '🌾' },
   { key: 'flete',         label: 'Flete',          e: '🚛' },
+  { key: 'seguro',        label: 'Seguro',         e: '🛡️' },
   { key: 'arrendamiento', label: 'Arrendamiento',  e: '🏠' },
   { key: 'otros',         label: 'Otros',          e: '📋' },
 ]

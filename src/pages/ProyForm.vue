@@ -49,7 +49,7 @@ const catalogo = computed(() => catStore.items)
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 
 const costoHa  = computed(() => f.itemsCosto.reduce((s, it) =>
-  s + calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, main.tipoCambio, f.rendimientoQq, f.precioVentaTn), 0))
+  s + calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, main.tipoCambio, f.rendimientoQq, f.precioVentaTn, catStore.labores), 0))
 const ingHa    = computed(() => calcIngresoHa(f))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 const stats    = computed(() => [
@@ -63,7 +63,7 @@ const stats    = computed(() => [
 function onGuardar() {
   const itemsCosto = f.itemsCosto.map(it => ({
     ...it,
-    costoHaCalculado: calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, main.tipoCambio, f.rendimientoQq, f.precioVentaTn),
+    costoHaCalculado: calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, main.tipoCambio, f.rendimientoQq, f.precioVentaTn, catStore.labores),
   }))
   emit('save', { ...f, itemsCosto })
 }
