@@ -40,6 +40,14 @@ export const useAuthStore = defineStore('auth', () => {
     if (error) throw error
   }
 
+  async function loginGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://don-italo-app.vercel.app' },
+    })
+    if (error) throw error
+  }
+
   async function registrarse(email, password, nombre) {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -55,5 +63,5 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = null
   }
 
-  return { session, loading, usuario, autenticado, init, login, registrarse, logout }
+  return { session, loading, usuario, autenticado, init, login, loginGoogle, registrarse, logout }
 })
