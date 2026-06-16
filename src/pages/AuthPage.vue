@@ -160,7 +160,8 @@ async function doGoogle() {
   try {
     await auth.loginGoogle()   // redirige al flujo de Google; al volver, init() restaura la sesión
   } catch (e) {
-    errorMsg.value = tradError(e.message)
+    console.error('[doGoogle] error:', e)
+    errorMsg.value = tradError(e.message) + ' (Google)'
     cargando.value = false
   }
 }

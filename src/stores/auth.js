@@ -41,11 +41,17 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loginGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = window.location.origin   // funciona en prod y en local
+    console.log('[loginGoogle] iniciando OAuth, redirectTo =', redirectTo)
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://don-italo-app.vercel.app' },
+      options: { redirectTo },
     })
+    console.log('[loginGoogle] resultado:', { url: data?.url, error })
     if (error) throw error
+    // Fallback: si por algún motivo no redirige automáticamente, forzar la navegación.
+    if (data?.url) window.location.assign(data.url)
+    return data
   }
 
   async function registrarse(email, password, nombre) {
