@@ -21,6 +21,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function init() {
     const { data } = await supabase.auth.getSession()
     session.value = data.session
+
+    // Si había sesión activa (ej: recarga con F5), cargar los datos sin re-loguear.
+    // import dinámico para evitar el ciclo auth ↔ main.
+    if (data.session) {
+      const { useMainStore } = await import('./main')
+      await useMainStore().loadData()
+    }
     loading.value = false
 
     supabase.auth.onAuthStateChange((_, s) => {
