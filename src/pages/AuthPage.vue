@@ -113,10 +113,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { useMainStore } from '../stores/main'
 
 const auth    = useAuthStore()
-const store   = useMainStore()
 const router  = useRouter()
 
 const tab             = ref('login')
@@ -146,7 +144,7 @@ async function doLogin() {
   errorMsg.value = ''; cargando.value = true
   try {
     await auth.login(email.value, password.value)
-    await store.loadData()
+    await auth.cargarDatos()
     router.push('/')
   } catch (e) {
     errorMsg.value = tradError(e.message)
@@ -178,7 +176,7 @@ async function doRegistro() {
       successMsg.value = '¡Cuenta creada! Revisá tu email para confirmar tu cuenta y luego iniciá sesión.'
       tab.value = 'login'
     } else {
-      await store.loadData()
+      await auth.cargarDatos()
       router.push('/onboarding')
     }
   } catch (e) {

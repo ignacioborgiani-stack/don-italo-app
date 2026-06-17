@@ -18,21 +18,33 @@ export const useAuthStore = defineStore('auth', () => {
 
   const autenticado = computed(() => !!session.value)
 
+  // Carga de datos memoizada: una sola vez por sesión (login, restauración F5 o callback OAuth).
+  let _carga = null
+  function cargarDatos() {
+    if (!_carga) _carga = import('./main').then(({ useMainStore }) => useMainStore().loadData())
+    return _carga
+  }
+
   async function init() {
+    // Listener primero: captura el callback de OAuth (Google), cuyo intercambio de
+    // code→sesión es asíncrono y llega DESPUÉS de que el guard ya redirigió a /auth.
+    supabase.auth.onAuthStateChange(async (_event, s) => {
+      session.value = s
+      if (!s) { _carga = null; return }
+      await cargarDatos()
+      // El callback OAuth vuelve a /auth con la sesión recién creada → ir al dashboard.
+      const prov = s.user?.app_metadata?.provider
+      if (prov && prov !== 'email') {
+        const { default: router } = await import('../router')
+        if (router.currentRoute.value.path === '/auth') router.replace('/')
+      }
+    })
+
+    // Sesión guardada (recarga F5 con login por email / restauración).
     const { data } = await supabase.auth.getSession()
     session.value = data.session
-
-    // Si había sesión activa (ej: recarga con F5), cargar los datos sin re-loguear.
-    // import dinámico para evitar el ciclo auth ↔ main.
-    if (data.session) {
-      const { useMainStore } = await import('./main')
-      await useMainStore().loadData()
-    }
+    if (data.session) await cargarDatos()
     loading.value = false
-
-    supabase.auth.onAuthStateChange((_, s) => {
-      session.value = s
-    })
   }
 
   async function login(email, password) {
@@ -67,7 +79,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     await supabase.auth.signOut()
     session.value = null
+    _carga = null
   }
 
-  return { session, loading, usuario, autenticado, init, login, loginGoogle, registrarse, logout }
+  return { session, loading, usuario, autenticado, init, cargarDatos, login, loginGoogle, registrarse, logout }
 })
