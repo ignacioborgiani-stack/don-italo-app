@@ -2,7 +2,6 @@
   <q-page style="padding:24px">
     <div class="q-mb-md">
       <h2 style="font-size:18px;font-weight:700;margin:0">Lotes</h2>
-      <p style="font-size:13px;color:#6b7280;margin:2px 0 0">Catastro de campos — independiente de campañas y costos.</p>
     </div>
 
     <!-- Mapa unificado con todos los polígonos -->

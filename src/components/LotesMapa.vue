@@ -85,7 +85,11 @@ function aplicarHighlight() {
 function init() {
   if (!el.value) return
   map = L.map(el.value, { scrollWheelZoom: false, attributionControl: false }).setView(CASILDA, 12)
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+  // Capas base: mapa de calles (OSM) y satélite (Esri World Imagery, gratuito sin API key)
+  const calles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+  calles.addTo(map)   // vista por defecto
+  L.control.layers({ 'Mapa': calles, 'Satélite': satelite }, null, { position: 'topright', collapsed: false }).addTo(map)
   dibujar()
   setTimeout(() => map && map.invalidateSize(), 120)
 }
