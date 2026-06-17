@@ -38,6 +38,38 @@
             style="width:100%;padding:7px;border-radius:7px;border:1.5px solid #3a6b35;background:#fff;color:#3a6b35;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
             Editar presupuesto
           </button>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button @click="toggle(d.cultivo)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;font-size:12px;font-family:inherit">
+              {{ abiertos.has(d.cultivo) ? 'Ocultar insumos ▲' : 'Ver insumos ▾' }}
+            </button>
+            <button @click="excelProy(d)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
+              ⬇ Excel
+            </button>
+          </div>
+
+          <div v-if="abiertos.has(d.cultivo)" style="margin-top:10px;overflow-x:auto;border:1px solid #f0ede8;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="background:#f9fafb;color:#6b7280">
+                  <th style="text-align:left;padding:5px 6px">Insumo</th>
+                  <th style="text-align:right;padding:5px 6px">Cant.</th>
+                  <th style="text-align:left;padding:5px 6px">Unidad</th>
+                  <th style="text-align:right;padding:5px 6px">$/ha</th>
+                  <th style="text-align:right;padding:5px 6px">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(f,i) in insumosDe(d)" :key="i" style="border-top:1px solid #f0ede8">
+                  <td style="padding:5px 6px">{{ f.insumo }}</td>
+                  <td style="padding:5px 6px;text-align:right">{{ f.cantidad }}</td>
+                  <td style="padding:5px 6px">{{ f.unidad }}</td>
+                  <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                  <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                </tr>
+                <tr v-if="!insumosDe(d).length"><td colspan="5" style="padding:8px;text-align:center;color:#9ca3af">Sin insumos.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -64,15 +96,23 @@
 import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
+import { useCatalogoStore } from '../stores/catalogo'
 import SvgHBar from '../components/charts/SvgHBar.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcCostoHa, calcIngresoHa } from '../utils/calculations'
+import { filasCultivo, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
+const catStore = useCatalogoStore()
 const editProy = ref(null)
+
+const ctx = computed(() => ({
+  catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
+  cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
+}))
 
 // Ha por cultivo = suma de ha de los lotes ASIGNADOS a la campaña activa con ese cultivo
 const calcHaCultivo = cultivo => store.asignaciones
@@ -89,6 +129,28 @@ const barData  = computed(() => store.proyecciones.map(p => {
 }).sort((a, b) => b.margenHa - a.margenHa))
 
 const totalMB = computed(() => barData.value.reduce((s, d) => s + d.margenTotal, 0))
+
+// Insumos proyectados por cultivo (tabla colapsable + Excel)
+const abiertos = ref(new Set())
+function toggle(cultivo) { const s = new Set(abiertos.value); s.has(cultivo) ? s.delete(cultivo) : s.add(cultivo); abiertos.value = s }
+const proyDe = cultivo => store.proyecciones.find(p => p.cultivo === cultivo)
+function insumosDe(d) {
+  const p = proyDe(d.cultivo)
+  return p ? filasCultivo(p, d.ha, ctx.value, d.cultivo) : []
+}
+function excelProy(d) {
+  const filasResumen = barData.value.flatMap(x => {
+    const p = proyDe(x.cultivo)
+    return p ? filasCultivo(p, x.ha, ctx.value, x.cultivo).map(f => ({ ...f, lote: x.cultivo })) : []
+  })
+  exportarExcel({
+    archivo: `costos-proyectados-${d.cultivo}-${store.campania.replace('/','-')}.xlsx`,
+    hojaDetalle: `Detalle ${d.cultivo}`,
+    filasDetalle: insumosDe(d),
+    filasResumen,
+    campania: store.campania,
+  })
+}
 
 function onSaveProy(f) { store.updProy(editProy.value.cultivo, f); editProy.value = null }
 </script>

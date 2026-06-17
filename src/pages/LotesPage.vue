@@ -79,7 +79,38 @@
             </div>
           </div>
         </div>
-        <div class="row justify-end q-mt-md"><q-btn flat label="Cerrar" @click="verRow=null"/></div>
+        <!-- Insumos reales del lote -->
+        <div style="margin-top:18px">
+          <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 6px">Insumos usados (reales)</p>
+          <div style="overflow-x:auto;border:1px solid #f0ede8;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="background:#f9fafb;color:#6b7280">
+                  <th style="text-align:left;padding:6px 8px">Insumo</th>
+                  <th style="text-align:right;padding:6px 8px">Cantidad</th>
+                  <th style="text-align:left;padding:6px 8px">Unidad</th>
+                  <th style="text-align:right;padding:6px 8px">$/ha</th>
+                  <th style="text-align:right;padding:6px 8px">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(f,i) in insumosVer" :key="i" style="border-top:1px solid #f0ede8">
+                  <td style="padding:6px 8px">{{ f.insumo }}<span v-if="verRow.a.tipoSiembra==='doble'" style="color:#9ca3af"> · {{ f.cultivo }}</span></td>
+                  <td style="padding:6px 8px;text-align:right">{{ f.cantidad }}</td>
+                  <td style="padding:6px 8px">{{ f.unidad }}</td>
+                  <td style="padding:6px 8px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                  <td style="padding:6px 8px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                </tr>
+                <tr v-if="!insumosVer.length"><td colspan="5" style="padding:10px;text-align:center;color:#9ca3af">Sin insumos cargados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="row justify-between items-center q-mt-md">
+          <q-btn unelevated color="positive" icon="download" label="Descargar Excel" @click="excelLote(verRow)"/>
+          <q-btn flat label="Cerrar" @click="verRow=null"/>
+        </div>
       </q-card>
     </q-dialog>
 
@@ -113,15 +144,22 @@
 import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
+import { useCatalogoStore } from '../stores/catalogo'
 import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcLote } from '../utils/calculations'
+import { filasAsignacion, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
 const store   = useMainStore()
 const lmStore = useLotesMaestroStore()
+const catStore = useCatalogoStore()
+const ctx = computed(() => ({
+  catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
+  cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
+}))
 const headers = ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
 
 const asignarModal = ref(null)
@@ -164,6 +202,21 @@ const pieData = computed(() => {
   ].filter(d => d.value > 0)
   return (a.cultivo?.itemsCosto || []).map((it, i) => ({ name: it.nombreManual || it.nombre || 'Ítem', value: itemVal(it), color: COLORS[i % 9] })).filter(d => d.value > 0)
 })
+
+// Insumos del lote en el modal Ver
+const insumosVer = computed(() => verRow.value ? filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value) : [])
+
+// Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
+function excelLote(row) {
+  const filasResumen = filas.value.flatMap(r => filasAsignacion(r.a, r.ha, ctx.value).map(f => ({ ...f, lote: r.nombre })))
+  exportarExcel({
+    archivo: `costos-contables-${row.nombre}-${store.campania.replace('/','-')}.xlsx`,
+    hojaDetalle: `Detalle ${row.nombre}`,
+    filasDetalle: filasAsignacion(row.a, row.ha, ctx.value),
+    filasResumen,
+    campania: store.campania,
+  })
+}
 
 function abrirAsignar() { asignarModal.value = { initial: null } }
 function editar(row)    { asignarModal.value = { initial: row.a } }
