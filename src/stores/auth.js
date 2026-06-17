@@ -26,25 +26,36 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function init() {
-    // Listener primero: captura el callback de OAuth (Google), cuyo intercambio de
-    // code→sesión es asíncrono y llega DESPUÉS de que el guard ya redirigió a /auth.
-    supabase.auth.onAuthStateChange(async (_event, s) => {
+    // IMPORTANTE: el callback de onAuthStateChange debe ser SÍNCRONO. Hacer `await`
+    // de operaciones de supabase/carga acá deadlockea el lock interno de supabase-js
+    // (getSession queda esperando para siempre → spinner colgado). Por eso el trabajo
+    // pesado (cargar datos + navegar) se difiere con setTimeout, FUERA del lock.
+    supabase.auth.onAuthStateChange((_event, s) => {
       session.value = s
       if (!s) { _carga = null; return }
-      await cargarDatos()
-      // El callback OAuth vuelve a /auth con la sesión recién creada → ir al dashboard.
-      const prov = s.user?.app_metadata?.provider
-      if (prov && prov !== 'email') {
-        const { default: router } = await import('../router')
-        if (router.currentRoute.value.path === '/auth') router.replace('/')
-      }
+      setTimeout(async () => {
+        try {
+          await cargarDatos()
+          // El callback OAuth vuelve a /auth con la sesión recién creada → ir al dashboard.
+          const prov = s.user?.app_metadata?.provider
+          if (prov && prov !== 'email') {
+            const { default: router } = await import('../router')
+            if (router.currentRoute.value.path === '/auth') router.replace('/')
+          }
+        } catch (e) { console.error('[auth.onAuthStateChange]', e) }
+      }, 0)
     })
 
     // Sesión guardada (recarga F5 con login por email / restauración).
-    const { data } = await supabase.auth.getSession()
-    session.value = data.session
-    if (data.session) await cargarDatos()
-    loading.value = false
+    try {
+      const { data } = await supabase.auth.getSession()
+      session.value = data.session
+      if (data.session) await cargarDatos()
+    } catch (e) {
+      console.error('[auth.init]', e)
+    } finally {
+      loading.value = false   // el spinner SIEMPRE se quita, pase lo que pase
+    }
   }
 
   async function login(email, password) {
