@@ -8,7 +8,7 @@
     <p v-if="!items.length" style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0">Sin ítems. Clic en "+ Agregar ítem".</p>
 
     <ItemCostoRow
-      v-for="(it, i) in items" :key="it.id || i"
+      v-for="(it, i) in sortedItems" :key="it.id || i"
       :item="it"
       :catalogo="catalogo"
       :labores="labores"
@@ -51,13 +51,13 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import ItemCostoRow from './ItemCostoRow.vue'
 import InsumoForm from './InsumoForm.vue'
 import LaborForm from './LaborForm.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
-import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, calcularCostoItemHa } from '../utils/calculations'
+import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, calcularCostoItemHa, ordenarItemsCosto } from '../utils/calculations'
 import { FAMILIAS_BASE, CATEGORIAS_LABORES } from '../utils/catalogoData'
 import { fmtUSD } from '../utils/formatters'
 
@@ -82,27 +82,39 @@ const categoriasLabores = computed(() => [...new Set([...CATEGORIAS_LABORES, ...
 const calc = it => calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn, labores.value)
 const total = computed(() => props.items.reduce((s, it) => s + calc(it), 0))
 
+// Lista visible: siempre ordenada por categoría y, dentro de cada una, por nombre.
+const sortedItems = computed(() => ordenarItemsCosto(props.items))
+const emitSorted = arr => emit('update:items', ordenarItemsCosto(arr))
+
+// Ítems heredados pueden no tener id; lo asignamos una vez para que el reordenado
+// sea estable (keys del v-for) y se persista al guardar.
+onMounted(() => {
+  if (props.items.some(it => !it.id)) {
+    emitSorted(props.items.map(it => it.id ? it : { ...it, id: uid() }))
+  }
+})
+
 function add() {
-  emit('update:items', [...props.items, {
+  emitSorted([...props.items, {
     id: uid(), categoria: 'fertilizante', insumoId: null, laborId: null, nombreManual: '',
     dosis: '', unidadDosis: '', costoHaCalculado: 0, modoEspecial: false, parametroEspecial: null,
   }])
 }
-function upd(i, it) { emit('update:items', props.items.map((x, idx) => idx === i ? it : x)) }
-function del(i)     { emit('update:items', props.items.filter((_, idx) => idx !== i)) }
+function upd(i, it) { emitSorted(sortedItems.value.map((x, idx) => idx === i ? it : x)) }
+function del(i)     { emitSorted(sortedItems.value.filter((_, idx) => idx !== i)) }
 
 // Crear insumo en línea
 const crearInsumo = ref(null)
 function onCrearInsumo(i, categoria) {
   const fams = CATEGORIA_A_FAMILIAS[categoria]
-  crearInsumo.value = { index: i, initial: { familia: (fams && fams[0]) || 'Otros' } }
+  crearInsumo.value = { item: sortedItems.value[i], initial: { familia: (fams && fams[0]) || 'Otros' } }
 }
 async function onSaveInsumo(form) {
   const nuevo = await catStore.addItem(form)
-  const i = crearInsumo.value.index
-  const base = { ...props.items[i], insumoId: nuevo.id, nombreManual: nuevo.nombre }
+  const target = crearInsumo.value.item
+  const base = { ...target, insumoId: nuevo.id, nombreManual: nuevo.nombre }
   base.costoHaCalculado = calc(base)
-  upd(i, base)
+  emitSorted(props.items.map(x => x === target ? base : x))
   crearInsumo.value = null
 }
 
@@ -110,16 +122,16 @@ async function onSaveInsumo(form) {
 const crearLabor = ref(null)
 function onCrearLabor(i, categoria) {
   const cats = LABOR_CATEGORIA_MAP[categoria]
-  crearLabor.value = { index: i, initial: { categoria: (cats && cats[0]) || 'Otro' } }
+  crearLabor.value = { item: sortedItems.value[i], initial: { categoria: (cats && cats[0]) || 'Otro' } }
 }
 async function onSaveLabor(form) {
   const nueva = await catStore.addLabor(form)
-  const i = crearLabor.value.index
-  const base = { ...props.items[i], laborId: nueva.id, nombreManual: nueva.nombre }
+  const target = crearLabor.value.item
+  const base = { ...target, laborId: nueva.id, nombreManual: nueva.nombre }
   if (nueva.esPorcentaje) base.dosis = nueva.porcentaje ?? 8
   else if (nueva.unidadPrecio === 'ha') base.dosis = base.dosis || 1
   base.costoHaCalculado = calc(base)
-  upd(i, base)
+  emitSorted(props.items.map(x => x === target ? base : x))
   crearLabor.value = null
 }
 </script>

@@ -157,8 +157,7 @@ import { useCatalogoStore } from '../stores/catalogo'
 import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
-import { getCultivoColor } from '../utils/constants'
-import { calcLote } from '../utils/calculations'
+import { calcLote, pieCostosPorCategoria } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -200,16 +199,14 @@ const detailStats = computed(() => {
   ]
 })
 
-const COLORS = ['#4a7c59','#e8a838','#5b8dd9','#d44f8e','#e05c3a','#c4893a','#2e7d5e','#9ca3af','#888']
-const itemVal = it => parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0
+// Torta de costos agrupada por familia/categoría (no por insumo individual).
 const pieData = computed(() => {
   if (!verRow.value) return []
-  const a = verRow.value.a, calc = verRow.value.calc
-  if (a.tipoSiembra === 'doble') return [
-    { name: a.cultivoInvernal?.nombre, value: calc.inv.costoHa, color: getCultivoColor(a.cultivoInvernal?.nombre) },
-    { name: a.cultivoEstival?.nombre,  value: calc.est.costoHa, color: getCultivoColor(a.cultivoEstival?.nombre) },
-  ].filter(d => d.value > 0)
-  return (a.cultivo?.itemsCosto || []).map((it, i) => ({ name: it.nombreManual || it.nombre || 'Ítem', value: itemVal(it), color: COLORS[i % 9] })).filter(d => d.value > 0)
+  const a = verRow.value.a
+  const items = a.tipoSiembra === 'doble'
+    ? [...(a.cultivoInvernal?.itemsCosto || []), ...(a.cultivoEstival?.itemsCosto || [])]
+    : (a.cultivo?.itemsCosto || [])
+  return pieCostosPorCategoria(items)
 })
 
 // Insumos del lote en el modal Ver: agrupados por insumo y por categoría

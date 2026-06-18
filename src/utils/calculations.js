@@ -1,3 +1,5 @@
+import { CATEGORIAS } from './constants'
+
 // Suma de costos por ha. Soporta el formato nuevo (costoHaCalculado) y el viejo (costoHaUsd).
 export const calcCostoHa   = c => (c?.itemsCosto || []).reduce((s, i) => s + (parseFloat(i.costoHaCalculado ?? i.costoHaUsd) || 0), 0)
 export const calcIngresoHa = c => ((parseFloat(c?.rendimientoQq) || 0) / 10) * (parseFloat(c?.precioVentaTn) || 0)
@@ -22,6 +24,53 @@ export const LABOR_CATEGORIA_MAP = {
 }
 // Categorías que se resuelven como ítem especial manual (no catálogo).
 export const CATEGORIAS_ESPECIALES = ['arrendamiento']
+
+// ── Orden y agrupación de ítems de costo ──────────────────────────
+
+// Orden agronómico de las categorías: define cómo se ordenan los ítems en el
+// editor y el orden de las porciones en el gráfico de torta.
+export const ORDEN_CATEGORIA = [
+  'semilla', 'inoculante', 'fertilizante', 'fitosanitario',
+  'labor', 'seguro', 'flete', 'cosecha', 'arrendamiento', 'otros',
+]
+const ordenCatIdx = cat => {
+  const i = ORDEN_CATEGORIA.indexOf(cat)
+  return i === -1 ? ORDEN_CATEGORIA.length : i
+}
+const CATEGORIA_LABEL = Object.fromEntries(CATEGORIAS.map(c => [c.key, c.label]))
+const nombreItem = it => (it?.nombreManual || it?.nombre || '').toString()
+
+// Color por categoría para el gráfico de torta agrupado por familia.
+export const CATEGORIA_COLOR = {
+  semilla: '#4a7c59', inoculante: '#82b366', fertilizante: '#e8a838',
+  fitosanitario: '#5b8dd9', labor: '#c4893a', cosecha: '#d4a017',
+  flete: '#8b5cf6', seguro: '#14b8a6', arrendamiento: '#d44f8e', otros: '#9ca3af',
+}
+
+// Ordena los ítems de costo por categoría (orden agronómico) y, dentro de cada
+// categoría, alfabéticamente por nombre. No muta el array original.
+export function ordenarItemsCosto(items = []) {
+  return [...items].sort((a, b) => {
+    const d = ordenCatIdx(a.categoria) - ordenCatIdx(b.categoria)
+    if (d) return d
+    return nombreItem(a).localeCompare(nombreItem(b), 'es', { sensitivity: 'base' })
+  })
+}
+
+// Agrupa los ítems de costo por categoría/familia para el gráfico de torta.
+// Devuelve [{ name, value, color }] ordenado y sin categorías en cero.
+export function pieCostosPorCategoria(items = []) {
+  const acc = {}
+  for (const it of items) {
+    const val = parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0
+    if (val <= 0) continue
+    const cat = it.categoria || 'otros'
+    acc[cat] = (acc[cat] || 0) + val
+  }
+  return Object.keys(acc)
+    .sort((a, b) => ordenCatIdx(a) - ordenCatIdx(b))
+    .map(cat => ({ name: CATEGORIA_LABEL[cat] || cat, value: acc[cat], color: CATEGORIA_COLOR[cat] || '#9ca3af' }))
+}
 
 // Etiqueta de la cantidad para una labor del catálogo.
 export function unidadDosisLabor(labor) {
