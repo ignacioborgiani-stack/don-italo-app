@@ -94,14 +94,23 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(f,i) in insumosVer" :key="i" style="border-top:1px solid #f0ede8">
-                  <td style="padding:6px 8px">{{ f.insumo }}<span v-if="verRow.a.tipoSiembra==='doble'" style="color:#9ca3af"> · {{ f.cultivo }}</span></td>
-                  <td style="padding:6px 8px;text-align:right">{{ f.cantidad }}</td>
-                  <td style="padding:6px 8px">{{ f.unidad }}</td>
-                  <td style="padding:6px 8px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
-                  <td style="padding:6px 8px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                <template v-for="sec in resumenVer.secciones" :key="sec.categoria">
+                  <tr style="background:#f0fdf4"><td colspan="5" style="padding:5px 8px;font-weight:700;color:#2d5a27;font-size:11px;text-transform:uppercase">{{ sec.label }}</td></tr>
+                  <tr v-for="(f,i) in sec.filas" :key="sec.categoria+i" style="border-top:1px solid #f0ede8">
+                    <td style="padding:6px 8px">{{ f.insumo }}<span v-if="verRow.a.tipoSiembra==='doble'" style="color:#9ca3af"> · {{ f.cultivo }}</span></td>
+                    <td style="padding:6px 8px;text-align:right">{{ f.cantidad }}</td>
+                    <td style="padding:6px 8px">{{ f.unidad }}</td>
+                    <td style="padding:6px 8px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                    <td style="padding:6px 8px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                  </tr>
+                </template>
+                <tr v-if="resumenVer.secciones.length" style="border-top:2px solid #2d5a27;background:#fafaf9">
+                  <td style="padding:7px 8px;font-weight:800;color:#2d5a27">TOTAL</td>
+                  <td/><td/>
+                  <td style="padding:7px 8px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(resumenVer.totalHa) }}</td>
+                  <td style="padding:7px 8px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(resumenVer.total) }}</td>
                 </tr>
-                <tr v-if="!insumosVer.length"><td colspan="5" style="padding:10px;text-align:center;color:#9ca3af">Sin insumos cargados.</td></tr>
+                <tr v-if="!resumenVer.secciones.length"><td colspan="5" style="padding:10px;text-align:center;color:#9ca3af">Sin insumos cargados.</td></tr>
               </tbody>
             </table>
           </div>
@@ -150,7 +159,7 @@ import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcLote } from '../utils/calculations'
-import { filasAsignacion, exportarExcel } from '../utils/resumenInsumos'
+import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
 const store   = useMainStore()
@@ -203,8 +212,10 @@ const pieData = computed(() => {
   return (a.cultivo?.itemsCosto || []).map((it, i) => ({ name: it.nombreManual || it.nombre || 'Ítem', value: itemVal(it), color: COLORS[i % 9] })).filter(d => d.value > 0)
 })
 
-// Insumos del lote en el modal Ver
-const insumosVer = computed(() => verRow.value ? filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value) : [])
+// Insumos del lote en el modal Ver: agrupados por insumo y por categoría
+const resumenVer = computed(() => verRow.value
+  ? agruparEnSecciones(filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value), verRow.value.ha)
+  : { secciones: [], total: 0, totalHa: 0 })
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
 function excelLote(row) {

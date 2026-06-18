@@ -114,6 +114,30 @@ export function agrupar(filas, ha, { conLote = false } = {}) {
   return out
 }
 
+// Etiquetas de categoría para los encabezados de la UI.
+export const LABEL_CATEGORIA = {
+  semilla: 'Semillas', inoculante: 'Inoculantes', fertilizante: 'Fertilizantes',
+  fitosanitario: 'Fitosanitarios', labor: 'Labores', seguro: 'Seguro',
+  flete: 'Flete', cosecha: 'Cosecha', arrendamiento: 'Arrendamiento', otros: 'Otros',
+}
+
+// Agrupa (con agrupar) y arma secciones por categoría para mostrar en pantalla.
+// Devuelve { secciones: [{ categoria, label, filas }], total, totalHa }.
+export function agruparEnSecciones(filas, ha) {
+  const planas = agrupar(filas, ha)
+  const secciones = []
+  for (const f of planas) {
+    let sec = secciones[secciones.length - 1]
+    if (!sec || sec.categoria !== f.categoria) {
+      sec = { categoria: f.categoria, label: LABEL_CATEGORIA[f.categoria] || f.categoria || 'Otros', filas: [] }
+      secciones.push(sec)
+    }
+    sec.filas.push(f)
+  }
+  const total = planas.reduce((s, f) => s + (parseFloat(f.costoTotal) || 0), 0)
+  return { secciones, total: r2(total), totalHa: parseFloat(ha) > 0 ? r2(total / parseFloat(ha)) : 0 }
+}
+
 // Genera el .xlsx: hoja 1 = detalle del lote/cultivo (agrupado), hoja 2 = resumen de la campaña.
 export function exportarExcel({ archivo, hojaDetalle, filasDetalle, haDetalle, filasResumen, campania }) {
   const wb = XLSX.utils.book_new()

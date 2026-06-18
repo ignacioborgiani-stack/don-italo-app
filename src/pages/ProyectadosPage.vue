@@ -59,14 +59,23 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(f,i) in insumosDe(d)" :key="i" style="border-top:1px solid #f0ede8">
-                  <td style="padding:5px 6px">{{ f.insumo }}</td>
-                  <td style="padding:5px 6px;text-align:right">{{ f.cantidad }}</td>
-                  <td style="padding:5px 6px">{{ f.unidad }}</td>
-                  <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
-                  <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                <template v-for="sec in seccionesDe(d).secciones" :key="sec.categoria">
+                  <tr style="background:#f0fdf4"><td colspan="5" style="padding:4px 6px;font-weight:700;color:#2d5a27;font-size:10px;text-transform:uppercase">{{ sec.label }}</td></tr>
+                  <tr v-for="(f,i) in sec.filas" :key="sec.categoria+i" style="border-top:1px solid #f0ede8">
+                    <td style="padding:5px 6px">{{ f.insumo }}</td>
+                    <td style="padding:5px 6px;text-align:right">{{ f.cantidad }}</td>
+                    <td style="padding:5px 6px">{{ f.unidad }}</td>
+                    <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                    <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                  </tr>
+                </template>
+                <tr v-if="seccionesDe(d).secciones.length" style="border-top:2px solid #2d5a27;background:#fafaf9">
+                  <td style="padding:5px 6px;font-weight:800;color:#2d5a27">TOTAL</td>
+                  <td/><td/>
+                  <td style="padding:5px 6px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(seccionesDe(d).totalHa) }}</td>
+                  <td style="padding:5px 6px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(seccionesDe(d).total) }}</td>
                 </tr>
-                <tr v-if="!insumosDe(d).length"><td colspan="5" style="padding:8px;text-align:center;color:#9ca3af">Sin insumos.</td></tr>
+                <tr v-if="!seccionesDe(d).secciones.length"><td colspan="5" style="padding:8px;text-align:center;color:#9ca3af">Sin insumos.</td></tr>
               </tbody>
             </table>
           </div>
@@ -101,7 +110,7 @@ import SvgHBar from '../components/charts/SvgHBar.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcCostoHa, calcIngresoHa } from '../utils/calculations'
-import { filasCultivo, exportarExcel } from '../utils/resumenInsumos'
+import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
@@ -137,6 +146,9 @@ const proyDe = cultivo => store.proyecciones.find(p => p.cultivo === cultivo)
 function insumosDe(d) {
   const p = proyDe(d.cultivo)
   return p ? filasCultivo(p, d.ha, ctx.value, d.cultivo) : []
+}
+function seccionesDe(d) {
+  return agruparEnSecciones(insumosDe(d), d.ha)
 }
 function excelProy(d) {
   const filasResumen = barData.value.flatMap(x => {
