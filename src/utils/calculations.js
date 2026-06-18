@@ -38,7 +38,6 @@ const ordenCatIdx = cat => {
   return i === -1 ? ORDEN_CATEGORIA.length : i
 }
 const CATEGORIA_LABEL = Object.fromEntries(CATEGORIAS.map(c => [c.key, c.label]))
-const nombreItem = it => (it?.nombreManual || it?.nombre || '').toString()
 
 // Color por categoría para el gráfico de torta agrupado por familia.
 export const CATEGORIA_COLOR = {
@@ -47,14 +46,11 @@ export const CATEGORIA_COLOR = {
   flete: '#8b5cf6', seguro: '#14b8a6', arrendamiento: '#d44f8e', otros: '#9ca3af',
 }
 
-// Ordena los ítems de costo por categoría (orden agronómico) y, dentro de cada
-// categoría, alfabéticamente por nombre. No muta el array original.
+// Ordena los ítems de costo por categoría (orden agronómico fijo). Es un orden
+// ESTABLE: dentro de cada categoría se respeta el orden del array, que es el
+// orden manual que el usuario define arrastrando. No muta el array original.
 export function ordenarItemsCosto(items = []) {
-  return [...items].sort((a, b) => {
-    const d = ordenCatIdx(a.categoria) - ordenCatIdx(b.categoria)
-    if (d) return d
-    return nombreItem(a).localeCompare(nombreItem(b), 'es', { sensitivity: 'base' })
-  })
+  return [...items].sort((a, b) => ordenCatIdx(a.categoria) - ordenCatIdx(b.categoria))
 }
 
 // Agrupa los ítems de costo por categoría/familia para el gráfico de torta.

@@ -1,6 +1,10 @@
 <template>
   <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-bottom:6px;background:#fff">
     <div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
+      <!-- Tirador para arrastrar (reordena dentro de la categoría) -->
+      <span class="di-drag-handle" title="Arrastrar para reordenar dentro de la categoría"
+        style="cursor:grab;color:#cbd5e1;font-size:15px;line-height:28px;flex-shrink:0;user-select:none;touch-action:none">⠿</span>
+
       <!-- Categoría -->
       <select :value="item.categoria" @change="onCategoria($event.target.value)" class="di-inp" style="width:120px;flex-shrink:0;padding:5px 6px;font-size:11px">
         <option v-for="c in CATEGORIAS" :key="c.key" :value="c.key">{{ c.e }} {{ c.label }}</option>
