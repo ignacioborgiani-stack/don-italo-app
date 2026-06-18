@@ -83,14 +83,53 @@ function filaExcel(f, { conLote = false } = {}) {
   }
 }
 
-// Genera el .xlsx: hoja 1 = detalle del lote/cultivo, hoja 2 = resumen de la campaña.
-export function exportarExcel({ archivo, hojaDetalle, filasDetalle, filasResumen, campania }) {
+// ── Agrupación y orden ────────────────────────────────────────────
+const ORDEN_CAT = ['semilla', 'inoculante', 'fertilizante', 'fitosanitario', 'labor', 'seguro', 'flete', 'cosecha', 'arrendamiento', 'otros']
+const ordenCat = c => { const i = ORDEN_CAT.indexOf((c || '').toLowerCase()); return i === -1 ? ORDEN_CAT.length : i }
+const r2 = n => Math.round((parseFloat(n) || 0) * 100) / 100
+
+// Agrupa por insumo (dentro de un lote/cultivo): suma cantidades y costos totales,
+// recalcula Costo/ha = costo total / ha, y ordena por categoría.
+export function agrupar(filas, ha, { conLote = false } = {}) {
+  const haNum = parseFloat(ha) || 0
+  const m = new Map()
+  for (const f of filas) {
+    const key = `${conLote ? (f.lote || '') : ''}||${f.cultivo || ''}||${f.insumo}`
+    if (!m.has(key)) m.set(key, { lote: f.lote || '', cultivo: f.cultivo || '', insumo: f.insumo, categoria: f.categoria, unidad: f.unidad, ha: conLote ? (parseFloat(f.ha) || 0) : haNum, cant: 0, hayCant: false, costoTotal: 0 })
+    const g = m.get(key)
+    const c = parseFloat(f.cantidad)
+    if (Number.isFinite(c)) { g.cant += c; g.hayCant = true }
+    g.costoTotal += parseFloat(f.costoTotal) || 0
+  }
+  const out = [...m.values()].map(g => ({
+    lote: g.lote, cultivo: g.cultivo, insumo: g.insumo, categoria: g.categoria, unidad: g.unidad,
+    cantidad: g.hayCant ? r2(g.cant) : '',
+    costoHa: g.ha > 0 ? r2(g.costoTotal / g.ha) : 0,   // Costo/ha = total / hectáreas
+    costoTotal: r2(g.costoTotal),
+  }))
+  out.sort((a, b) =>
+    (conLote ? String(a.lote).localeCompare(String(b.lote)) : 0) ||
+    ordenCat(a.categoria) - ordenCat(b.categoria) ||
+    String(a.insumo).localeCompare(String(b.insumo)))
+  return out
+}
+
+// Genera el .xlsx: hoja 1 = detalle del lote/cultivo (agrupado), hoja 2 = resumen de la campaña.
+export function exportarExcel({ archivo, hojaDetalle, filasDetalle, haDetalle, filasResumen, campania }) {
   const wb = XLSX.utils.book_new()
 
-  const wsDet = XLSX.utils.json_to_sheet(filasDetalle.map(f => filaExcel(f)))
-  XLSX.utils.book_append_sheet(wb, wsDet, (hojaDetalle || 'Detalle').slice(0, 31))
+  // Hoja detalle: agrupada por insumo + fila TOTAL al final
+  const det = agrupar(filasDetalle, haDetalle)
+  const totalDet = det.reduce((s, f) => s + (parseFloat(f.costoTotal) || 0), 0)
+  det.push({ cultivo: '', insumo: 'TOTAL', categoria: '', cantidad: '', unidad: '', costoHa: haDetalle > 0 ? r2(totalDet / haDetalle) : '', costoTotal: r2(totalDet) })
+  const wsDet = XLSX.utils.json_to_sheet(det.map(f => filaExcel(f)))
+  XLSX.utils.book_append_sheet(wb, wsDet, (hojaDetalle || 'Detalle').slice(0, 31).replace(/[/\\?*[\]]/g, '-'))
 
-  const wsRes = XLSX.utils.json_to_sheet(filasResumen.map(f => filaExcel(f, { conLote: true })))
+  // Hoja resumen: agrupada por lote+insumo + TOTAL general
+  const res = agrupar(filasResumen, null, { conLote: true })
+  const totalRes = res.reduce((s, f) => s + (parseFloat(f.costoTotal) || 0), 0)
+  res.push({ lote: 'TOTAL', cultivo: '', insumo: '', categoria: '', cantidad: '', unidad: '', costoHa: '', costoTotal: r2(totalRes) })
+  const wsRes = XLSX.utils.json_to_sheet(res.map(f => filaExcel(f, { conLote: true })))
   XLSX.utils.book_append_sheet(wb, wsRes, `Resumen ${campania || ''}`.trim().slice(0, 31).replace(/[/\\?*[\]]/g, '-'))
 
   XLSX.writeFile(wb, archivo)

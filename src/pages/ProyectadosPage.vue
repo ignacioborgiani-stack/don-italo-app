@@ -141,12 +141,13 @@ function insumosDe(d) {
 function excelProy(d) {
   const filasResumen = barData.value.flatMap(x => {
     const p = proyDe(x.cultivo)
-    return p ? filasCultivo(p, x.ha, ctx.value, x.cultivo).map(f => ({ ...f, lote: x.cultivo })) : []
+    return p ? filasCultivo(p, x.ha, ctx.value, x.cultivo).map(f => ({ ...f, lote: x.cultivo, ha: x.ha })) : []
   })
   exportarExcel({
     archivo: `costos-proyectados-${d.cultivo}-${store.campania.replace('/','-')}.xlsx`,
     hojaDetalle: `Detalle ${d.cultivo}`,
     filasDetalle: insumosDe(d),
+    haDetalle: d.ha,
     filasResumen,
     campania: store.campania,
   })

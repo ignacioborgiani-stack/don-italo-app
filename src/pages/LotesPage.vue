@@ -208,11 +208,12 @@ const insumosVer = computed(() => verRow.value ? filasAsignacion(verRow.value.a,
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
 function excelLote(row) {
-  const filasResumen = filas.value.flatMap(r => filasAsignacion(r.a, r.ha, ctx.value).map(f => ({ ...f, lote: r.nombre })))
+  const filasResumen = filas.value.flatMap(r => filasAsignacion(r.a, r.ha, ctx.value).map(f => ({ ...f, lote: r.nombre, ha: r.ha })))
   exportarExcel({
     archivo: `costos-contables-${row.nombre}-${store.campania.replace('/','-')}.xlsx`,
     hojaDetalle: `Detalle ${row.nombre}`,
     filasDetalle: filasAsignacion(row.a, row.ha, ctx.value),
+    haDetalle: row.ha,
     filasResumen,
     campania: store.campania,
   })
