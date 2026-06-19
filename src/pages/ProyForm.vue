@@ -12,9 +12,11 @@
     </div>
     <ItemsCostoCatalogo
       :items="f.itemsCosto"
+      :etapas="f.etapas"
+      :ordenar-cat="f.ordenarCat !== false"
       :rendimiento-qq="f.rendimientoQq"
       :precio-venta-tn="f.precioVentaTn"
-      @update:items="v=>f.itemsCosto=v"
+      @update="onUpdItems"
     />
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin:14px 0">
       <div v-for="[l,v,c] in stats" :key="l">
@@ -43,7 +45,9 @@ const emit  = defineEmits(['save', 'cancel'])
 const catStore = useCatalogoStore()
 const main = useMainStore()
 
-const f = reactive({ ...props.proy, itemsCosto: props.proy.itemsCosto || [] })
+const f = reactive({ ...props.proy, itemsCosto: props.proy.itemsCosto || [], etapas: props.proy.etapas || [], ordenarCat: props.proy.ordenarCat !== false })
+
+function onUpdItems(v) { f.itemsCosto = v.items; f.etapas = v.etapas; f.ordenarCat = v.ordenarCat }
 
 const catalogo = computed(() => catStore.items)
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))

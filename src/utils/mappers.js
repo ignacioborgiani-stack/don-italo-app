@@ -15,7 +15,10 @@ export const loteFromDb = r => ({
 export const proyToDb = (p, campana = '2024/25') => ({
   cultivo: p.cultivo,
   campana: p.campana || campana,
-  datos: { tipo: p.tipo, rendimientoQq: p.rendimientoQq, precioVentaTn: p.precioVentaTn, itemsCosto: p.itemsCosto || [] },
+  datos: {
+    tipo: p.tipo, rendimientoQq: p.rendimientoQq, precioVentaTn: p.precioVentaTn,
+    itemsCosto: p.itemsCosto || [], etapas: p.etapas || [], ordenarCat: p.ordenarCat !== false,
+  },
 })
 export const proyFromDb = r => ({
   id: r.id, cultivo: r.cultivo, campana: r.campana,
@@ -23,6 +26,8 @@ export const proyFromDb = r => ({
   rendimientoQq: r.datos?.rendimientoQq || 0,
   precioVentaTn: r.datos?.precioVentaTn || 0,
   itemsCosto: r.datos?.itemsCosto || [],
+  etapas: r.datos?.etapas || [],
+  ordenarCat: r.datos?.ordenarCat !== false,
 })
 
 export const stToDb = s => ({

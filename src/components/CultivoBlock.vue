@@ -18,7 +18,13 @@
         <input type="number" :value="cultivoObj.precioVentaTn||''" @input="set('precioVentaTn',$event.target.value)" placeholder="0" class="di-inp"/>
       </div>
     </div>
-    <ItemsCostoCatalogo :items="cultivoObj.itemsCosto||[]" :rendimiento-qq="cultivoObj.rendimientoQq" :precio-venta-tn="cultivoObj.precioVentaTn" @update:items="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v})"/>
+    <ItemsCostoCatalogo
+      :items="cultivoObj.itemsCosto||[]"
+      :etapas="cultivoObj.etapas||[]"
+      :ordenar-cat="cultivoObj.ordenarCat !== false"
+      :rendimiento-qq="cultivoObj.rendimientoQq"
+      :precio-venta-tn="cultivoObj.precioVentaTn"
+      @update="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v.items,etapas:v.etapas,ordenarCat:v.ordenarCat})"/>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f9fafb;border-radius:8px;padding:8px 10px;margin-top:10px">
       <div v-for="[l,v,c] in stats" :key="l">
         <p style="font-size:10px;color:#9ca3af">{{ l }}</p>
