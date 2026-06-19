@@ -54,6 +54,10 @@
       </div>
     </div>
 
+    <div v-if="filas.length" style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-top:18px">
+      <ResultadoNetoCard :bruto="totM" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto contable de la campaña"/>
+    </div>
+
     <!-- Detalle -->
     <q-dialog v-if="verRow" :model-value="true" @hide="verRow=null">
       <q-card style="width:640px;max-width:95vw;border-radius:14px;padding:28px">
@@ -157,6 +161,7 @@ import { useCatalogoStore } from '../stores/catalogo'
 import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
+import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import { calcLote, pieCostosPorCategoria } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'

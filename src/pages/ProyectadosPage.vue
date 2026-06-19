@@ -83,6 +83,10 @@
       </div>
     </div>
 
+    <div style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:24px">
+      <ResultadoNetoCard :bruto="totalMB" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto proyectado de la campaña"/>
+    </div>
+
     <div style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Comparativa margen bruto proyectado (USD/ha)</h3>
       <SvgHBar :data="barData" :height="250"/>
@@ -107,6 +111,7 @@ import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useCatalogoStore } from '../stores/catalogo'
 import SvgHBar from '../components/charts/SvgHBar.vue'
+import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcCostoHa, calcIngresoHa } from '../utils/calculations'

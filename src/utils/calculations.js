@@ -68,6 +68,14 @@ export function pieCostosPorCategoria(items = []) {
     .map(cat => ({ name: CATEGORIA_LABEL[cat] || cat, value: acc[cat], color: CATEGORIA_COLOR[cat] || '#9ca3af' }))
 }
 
+// ── Costos fijos de estructura ────────────────────────────────────
+// Costo fijo llevado a USD/año: mensual ×12; ARS → USD por tipo de cambio.
+export function costoFijoAnualUsd(cf, tipoCambio = 1) {
+  const monto = parseFloat(cf?.monto) || 0
+  const usd = cf?.moneda === 'ARS' ? monto / (parseFloat(tipoCambio) || 1) : monto
+  return usd * (cf?.periodicidad === 'mensual' ? 12 : 1)
+}
+
 // Etiqueta de la cantidad para una labor del catálogo.
 export function unidadDosisLabor(labor) {
   if (!labor) return ''

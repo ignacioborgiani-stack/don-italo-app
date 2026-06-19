@@ -92,6 +92,27 @@ export const asignacionFromDb = r => ({
   cultivoEstival: r.cultivo_estival,
 })
 
+// ── Costos fijos de estructura (por campaña) ──────────────────────
+export const costoFijoToDb = c => ({
+  id: c.id,
+  campana_id: c.campanaId || null,
+  concepto: c.concepto || '',
+  monto: parseFloat(c.monto) || 0,
+  moneda: c.moneda || 'USD',
+  periodicidad: c.periodicidad || 'anual',
+  notas: c.notas || '',
+})
+export const costoFijoFromDb = r => ({
+  id: r.id,
+  campanaId: r.campana_id || null,
+  concepto: r.concepto || '',
+  monto: parseFloat(r.monto) || 0,
+  moneda: r.moneda || 'USD',
+  periodicidad: r.periodicidad || 'anual',
+  notas: r.notas || '',
+  createdAt: r.created_at,
+})
+
 // ── Catálogo de insumos ───────────────────────────────────────────
 export const catToDb = c => ({
   id: c.id,

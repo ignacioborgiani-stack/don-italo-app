@@ -1,11 +1,15 @@
 <template>
   <q-page style="padding:24px;max-width:1400px">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px">
       <div v-for="card in statCards" :key="card.l" style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
         <p style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">{{ card.l }}</p>
         <p :style="{fontSize:'26px',fontWeight:800,color:card.c||'#2d5a27',lineHeight:1}">{{ card.v }}</p>
         <p v-if="card.s" style="font-size:11px;color:#9ca3af;margin-top:4px">{{ card.s }}</p>
       </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:28px">
+      <ResultadoNetoCard :bruto="resultadoBruto" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto de la campaña"/>
     </div>
 
     <div style="display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:20px;align-items:start">
@@ -45,6 +49,7 @@ import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
+import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcLote, getCultivoLabel, getLoteName } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'

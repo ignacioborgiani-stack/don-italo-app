@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
-import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb } from '../utils/mappers'
+import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb } from '../utils/mappers'
+import { costoFijoAnualUsd } from '../utils/calculations'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
 
@@ -23,13 +24,21 @@ export const useMainStore = defineStore('main', () => {
   const sbConnected  = ref(false)
   const campania     = ref('2024/25')
   const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
+  const campanasRows = ref([])   // filas completas {id, nombre} para resolver campana_id
   const tipoCambio   = ref(1000)   // ARS por USD (para insumos cotizados en ARS)
   const lotes        = ref([])
   const asignaciones = ref([])   // asignaciones_campana (lote ↔ campaña ↔ cultivo + costos)
   const proyecciones = ref([])
   const stocks       = ref([])
+  const costosFijos  = ref([])   // costos_fijos de estructura (por campaña)
   const chatMessages = ref([])
   const apiKey       = ref('')
+
+  // id de la campaña activa (para costos_fijos.campana_id)
+  const campanaIdActiva = computed(() => campanasRows.value.find(c => c.nombre === campania.value)?.id || null)
+  // Costos fijos de la campaña activa y su total anual en USD.
+  const costosFijosActivos = computed(() => costosFijos.value.filter(c => c.campanaId === campanaIdActiva.value))
+  const costosFijosTotal   = computed(() => costosFijosActivos.value.reduce((s, cf) => s + costoFijoAnualUsd(cf, tipoCambio.value), 0))
 
   function getUid() {
     return useAuthStore().usuario?.id
@@ -57,6 +66,7 @@ export const useMainStore = defineStore('main', () => {
       try { await useLotesMaestroStore().loadLotesMaestro() } catch (e) { console.warn('[lotes_maestro] tabla no disponible:', e?.message) }
       try { await loadAsignaciones() } catch (e) { console.warn('[asignaciones_campana] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
+      try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
       console.error('[loadData]', e?.message)
@@ -68,14 +78,20 @@ export const useMainStore = defineStore('main', () => {
   async function loadCampanas() {
     const userId = getUid()
     const { data } = await supabase.from('campanas').select('*')
-    let nombres = (data || []).map(c => c.nombre)
-    if (!nombres.length) {
+    let rows = data || []
+    if (!rows.length) {
       // Primer arranque: sembrar con las campañas que ya aparecen en los lotes + defaults
       const enLotes = lotes.value.map(l => l.campaña).filter(Boolean)
-      nombres = [...new Set([...CAMPAÑAS, ...enLotes])]
-      if (userId) await supabase.from('campanas').insert(nombres.map(n => ({ user_id: userId, nombre: n })))
+      const nombres = [...new Set([...CAMPAÑAS, ...enLotes])]
+      if (userId) {
+        const { data: ins } = await supabase.from('campanas').insert(nombres.map(n => ({ user_id: userId, nombre: n }))).select()
+        rows = ins || nombres.map(n => ({ nombre: n }))
+      } else {
+        rows = nombres.map(n => ({ nombre: n }))
+      }
     }
-    campanas.value = nombres.sort(ordenCampana)
+    campanasRows.value = rows
+    campanas.value = rows.map(c => c.nombre).sort(ordenCampana)
     if (!campanas.value.includes(campania.value)) campania.value = campanas.value[campanas.value.length - 1] || '2024/25'
   }
 
@@ -83,8 +99,9 @@ export const useMainStore = defineStore('main', () => {
     const n = (nombre || '').trim()
     if (!n || campanas.value.includes(n)) { if (n) campania.value = n; return }
     const userId = getUid()
-    const { error } = await supabase.from('campanas').insert({ user_id: userId, nombre: n })
+    const { data, error } = await supabase.from('campanas').insert({ user_id: userId, nombre: n }).select().single()
     if (error) throw error
+    if (data) campanasRows.value = [...campanasRows.value, data]
     campanas.value = [...campanas.value, n].sort(ordenCampana)
     campania.value = n   // arranca seleccionada y vacía
   }
@@ -95,7 +112,65 @@ export const useMainStore = defineStore('main', () => {
     const { error } = await supabase.from('campanas').delete().eq('user_id', userId).eq('nombre', nombre)
     if (error) throw error
     campanas.value = campanas.value.filter(c => c !== nombre)
+    campanasRows.value = campanasRows.value.filter(c => c.nombre !== nombre)
     if (campania.value === nombre) campania.value = campanas.value[campanas.value.length - 1] || ''
+  }
+
+  // Asegura que la campaña activa tenga fila en `campanas` y devuelve su id.
+  async function ensureCampanaIdActiva() {
+    if (campanaIdActiva.value) return campanaIdActiva.value
+    const userId = getUid()
+    const { data, error } = await supabase.from('campanas').insert({ user_id: userId, nombre: campania.value }).select().single()
+    if (!error && data) { campanasRows.value = [...campanasRows.value, data]; return data.id }
+    // Si ya existía (conflicto único) u otro caso, recargar y devolver lo que haya.
+    await loadCampanas()
+    return campanaIdActiva.value
+  }
+
+  // ── Costos fijos de estructura (por campaña) ──────────────────
+  async function loadCostosFijos() {
+    const { data, error } = await supabase.from('costos_fijos').select('*').order('created_at')
+    if (error) throw error
+    costosFijos.value = (data || []).map(costoFijoFromDb)
+  }
+
+  async function addCostoFijo(cf) {
+    const userId = getUid()
+    const campanaId = await ensureCampanaIdActiva()
+    const n = { ...cf, id: uid(), campanaId }
+    const { data, error } = await supabase.from('costos_fijos').insert({ ...costoFijoToDb(n), user_id: userId }).select().single()
+    if (error) throw error
+    costosFijos.value = [...costosFijos.value, costoFijoFromDb(data)]
+  }
+
+  async function updCostoFijo(id, delta) {
+    const upd = { ...costosFijos.value.find(c => c.id === id), ...delta }
+    const { error } = await supabase.from('costos_fijos').update(costoFijoToDb(upd)).eq('id', id)
+    if (error) throw error
+    costosFijos.value = costosFijos.value.map(c => c.id === id ? upd : c)
+  }
+
+  async function delCostoFijo(id) {
+    const { error } = await supabase.from('costos_fijos').delete().eq('id', id)
+    if (error) throw error
+    costosFijos.value = costosFijos.value.filter(c => c.id !== id)
+  }
+
+  // Copia los costos fijos de la campaña inmediatamente anterior a la activa.
+  async function copiarCostosFijosDeAnterior() {
+    const idx = campanas.value.indexOf(campania.value)
+    const anterior = idx > 0 ? campanas.value[idx - 1] : null
+    if (!anterior) throw new Error('No hay una campaña anterior de la cual copiar.')
+    const anteriorId = campanasRows.value.find(c => c.nombre === anterior)?.id
+    const origen = costosFijos.value.filter(c => c.campanaId === anteriorId)
+    if (!origen.length) throw new Error(`La campaña anterior (${anterior}) no tiene costos fijos cargados.`)
+    const userId = getUid()
+    const campanaId = await ensureCampanaIdActiva()
+    const filas = origen.map(c => ({ ...costoFijoToDb({ ...c, id: uid(), campanaId }), user_id: userId }))
+    const { data, error } = await supabase.from('costos_fijos').insert(filas).select()
+    if (error) throw error
+    costosFijos.value = [...costosFijos.value, ...(data || []).map(costoFijoFromDb)]
+    return data?.length || 0
   }
 
   // ── Onboarding: cargar datos de ejemplo ───────────────────────
@@ -116,6 +191,7 @@ export const useMainStore = defineStore('main', () => {
 
   function resetData() {
     lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
+    costosFijos.value = []; campanasRows.value = []
     chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
     useCatalogoStore().reset()
@@ -297,13 +373,15 @@ export const useMainStore = defineStore('main', () => {
   function setTipoCambio(v) { tipoCambio.value = parseFloat(v) || tipoCambio.value }
 
   return {
-    sbConnected, campania, campanas, tipoCambio, lotes, asignaciones, proyecciones, stocks, chatMessages, apiKey,
+    sbConnected, campania, campanas, campanasRows, tipoCambio, lotes, asignaciones, proyecciones, stocks, costosFijos, chatMessages, apiKey,
+    campanaIdActiva, costosFijosActivos, costosFijosTotal,
     loadData, cargarDatosDemo, resetData,
     loadCampanas, addCampana, delCampana, setTipoCambio,
     addLote, updLote, delLote,
     loadAsignaciones, addAsignacion, updAsignacion, delAsignacion,
     updProy,
     addStock, updStock, delStock, moveStock,
+    loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
     addMsg, setApiKey, setCampania,
   }
 })
