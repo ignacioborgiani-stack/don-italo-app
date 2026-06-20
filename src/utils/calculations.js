@@ -206,3 +206,64 @@ export const getCultivoLabel = l =>
     : l.cultivo?.nombre || '—'
 
 export const totalVal = i => (parseFloat(i.cantidad) || 0) * (parseFloat(i.precioUnitario) || 0)
+
+// ══════════════════════════════════════════════════════════════════
+//  Alquiler por lote + indicadores (rinde de indiferencia, margen/tn)
+// ══════════════════════════════════════════════════════════════════
+const _itemHa = it => parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0
+
+// Costo USD/ha del cultivo SIN alquiler (excluye ítems categoría 'arrendamiento').
+export const costoHaSinAlquiler = cultivo =>
+  (cultivo?.itemsCosto || []).filter(it => it.categoria !== 'arrendamiento').reduce((s, it) => s + _itemHa(it), 0)
+// Alquiler USD/ha cargado como ítem 'arrendamiento' del editor (se usa en Proyectados).
+export const alquilerHaItems = cultivo =>
+  (cultivo?.itemsCosto || []).filter(it => it.categoria === 'arrendamiento').reduce((s, it) => s + _itemHa(it), 0)
+
+// Total USD del alquiler del lote según el contrato (depende del precio del cultivo de referencia).
+//   quintales_fijos:    cantidad(qq/ha) × ha / 10 (→tn) × precioRef(USD/tn)
+//   porcentaje_cosecha: cantidad(%)/100 × rinde estival(qq/ha) × ha / 10 (→tn) × precioRef
+export function calcAlquilerTotal(contrato, { ha = 0, rindeEstivalQq = 0, cultivosPrecio = {} } = {}) {
+  if (!contrato || !contrato.tipoContrato) return 0
+  const precioRef = parseFloat(cultivosPrecio[contrato.cultivoReferencia]) || 0
+  const haN = parseFloat(ha) || 0
+  const cant = parseFloat(contrato.cantidad) || 0
+  if (!precioRef || !haN || !cant) return 0
+  if (contrato.tipoContrato === 'quintales_fijos')    return (cant * haN / 10) * precioRef
+  if (contrato.tipoContrato === 'porcentaje_cosecha') return (cant / 100) * ((parseFloat(rindeEstivalQq) || 0) * haN / 10) * precioRef
+  return 0
+}
+
+// Reparte el alquiler total del lote entre sus cultivos (USD totales y USD/ha).
+export function alquilerPorCultivo(contrato, asignacion, ha, cultivosPrecio = {}) {
+  const haN = parseFloat(ha) || 0
+  const esDoble = asignacion?.tipoSiembra === 'doble'
+  const estival = esDoble ? asignacion?.cultivoEstival : asignacion?.cultivo
+  const rindeEstivalQq = parseFloat(estival?.rendimientoQq) || 0
+  const total = calcAlquilerTotal(contrato, { ha: haN, rindeEstivalQq, cultivosPrecio })
+  const perHa = v => haN ? v / haN : 0
+  if (esDoble) {
+    const rE = parseFloat(contrato?.repartoEstival ?? 100) || 0
+    const rI = parseFloat(contrato?.repartoInvernal ?? 0) || 0
+    const sum = (rE + rI) || 100
+    const estUsd = total * rE / sum, invUsd = total * rI / sum
+    return { total, estivalUsd: estUsd, invernalUsd: invUsd, estivalHa: perHa(estUsd), invernalHa: perHa(invUsd) }
+  }
+  return { total, simpleUsd: total, simpleHa: perHa(total) }
+}
+
+// Indicadores por cultivo: rinde de indiferencia (con/sin alquiler) y margen de contribución/tn.
+export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, precioTn = 0, rindeQq = 0 }) {
+  const precio = parseFloat(precioTn) || 0
+  const rindeTn = (parseFloat(rindeQq) || 0) / 10
+  const sinHa = parseFloat(costoSinAlqHa) || 0
+  const conHa = sinHa + (parseFloat(alquilerHa) || 0)
+  const indif = costo => precio > 0 ? costo / precio : 0   // tn/ha
+  const sinTn = indif(sinHa), conTn = indif(conHa)
+  const costoVarTn = rindeTn > 0 ? conHa / rindeTn : 0
+  return {
+    costoSinAlqHa: sinHa, alquilerHa: parseFloat(alquilerHa) || 0, costoConAlqHa: conHa,
+    rindeIndifSinTn: sinTn, rindeIndifSinKg: sinTn * 1000,
+    rindeIndifConTn: conTn, rindeIndifConKg: conTn * 1000,
+    costoVariableTn: costoVarTn, margenContribTn: precio - costoVarTn,
+  }
+}

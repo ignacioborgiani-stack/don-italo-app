@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
-import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb } from '../utils/mappers'
+import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb, contratoAlquilerToDb, contratoAlquilerFromDb } from '../utils/mappers'
 import { costoFijoAnualUsd } from '../utils/calculations'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
@@ -33,6 +33,7 @@ export const useMainStore = defineStore('main', () => {
   const proyecciones = ref([])
   const stocks       = ref([])
   const costosFijos  = ref([])   // costos_fijos de estructura (por campaña)
+  const contratosAlquiler = ref([])   // contratos de alquiler por lote+campaña
   const chatMessages = ref([])
   const apiKey       = ref('')
 
@@ -84,6 +85,7 @@ export const useMainStore = defineStore('main', () => {
       try { await loadAsignaciones() } catch (e) { console.warn('[asignaciones_campana] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
+      try { await loadContratosAlquiler() } catch (e) { console.warn('[contratos_alquiler] tabla no disponible:', e?.message) }
       try { await usePlantillasStore().loadPlantillas() } catch (e) { console.warn('[plantillas_costos] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
@@ -193,6 +195,34 @@ export const useMainStore = defineStore('main', () => {
     return data?.length || 0
   }
 
+  // ── Contratos de alquiler por lote+campaña ────────────────────
+  async function loadContratosAlquiler() {
+    const { data, error } = await supabase.from('contratos_alquiler').select('*').eq('user_id', getOwnerId())
+    if (error) throw error
+    contratosAlquiler.value = (data || []).map(contratoAlquilerFromDb)
+  }
+  function contratoDeLote(loteId, campana) {
+    return contratosAlquiler.value.find(c => c.loteId === loteId && c.campana === campana) || null
+  }
+  async function upsertContratoAlquiler(loteId, campana, datos) {
+    const userId = getOwnerId()
+    const existing = contratoDeLote(loteId, campana)
+    const row = { ...contratoAlquilerToDb({ ...datos, id: existing?.id || uid(), loteId, campana }), user_id: userId }
+    const { data, error } = await supabase.from('contratos_alquiler')
+      .upsert(row, { onConflict: 'user_id,lote_id,campana' }).select().single()
+    if (error) throw error
+    const saved = contratoAlquilerFromDb(data)
+    contratosAlquiler.value = existing
+      ? contratosAlquiler.value.map(c => c.id === saved.id ? saved : c)
+      : [...contratosAlquiler.value, saved]
+    return saved
+  }
+  async function delContratoAlquiler(id) {
+    const { error } = await supabase.from('contratos_alquiler').delete().eq('id', id)
+    if (error) throw error
+    contratosAlquiler.value = contratosAlquiler.value.filter(c => c.id !== id)
+  }
+
   // ── Onboarding: cargar datos de ejemplo ───────────────────────
   async function cargarDatosDemo() {
     const userId = getUid()
@@ -211,7 +241,7 @@ export const useMainStore = defineStore('main', () => {
 
   function resetData() {
     lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
-    costosFijos.value = []; campanasRows.value = []
+    costosFijos.value = []; contratosAlquiler.value = []; campanasRows.value = []
     chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
     useCatalogoStore().reset()
@@ -395,7 +425,7 @@ export const useMainStore = defineStore('main', () => {
   function setTipoCambio(v) { tipoCambio.value = parseFloat(v) || tipoCambio.value }
 
   return {
-    sbConnected, campania, campanas, campanasRows, tipoCambio, lotes, asignaciones, proyecciones, stocks, costosFijos, chatMessages, apiKey,
+    sbConnected, campania, campanas, campanasRows, tipoCambio, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler, chatMessages, apiKey,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,
     loadData, reloadDatos, cargarDatosDemo, resetData,
     loadCampanas, addCampana, delCampana, setTipoCambio,
@@ -404,6 +434,7 @@ export const useMainStore = defineStore('main', () => {
     updProy,
     addStock, updStock, delStock, moveStock,
     loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
+    loadContratosAlquiler, contratoDeLote, upsertContratoAlquiler, delContratoAlquiler,
     addMsg, setApiKey, setCampania,
   }
 })

@@ -139,6 +139,28 @@ export const miembroFromDb = r => ({
   granjaPropietarioId: r.granjas?.propietario_id || null,
 })
 
+// ── Contratos de alquiler por lote ────────────────────────────────
+export const contratoAlquilerToDb = c => ({
+  id: c.id,
+  lote_id: c.loteId,
+  campana: c.campana,
+  tipo_contrato: c.tipoContrato || 'quintales_fijos',
+  cultivo_referencia: c.cultivoReferencia || '',
+  cantidad: parseFloat(c.cantidad) || 0,
+  reparto_estival: c.repartoEstival == null ? 100 : parseFloat(c.repartoEstival),
+  reparto_invernal: c.repartoInvernal == null ? 0 : parseFloat(c.repartoInvernal),
+})
+export const contratoAlquilerFromDb = r => ({
+  id: r.id,
+  loteId: r.lote_id,
+  campana: r.campana,
+  tipoContrato: r.tipo_contrato || 'quintales_fijos',
+  cultivoReferencia: r.cultivo_referencia || '',
+  cantidad: parseFloat(r.cantidad) || 0,
+  repartoEstival: r.reparto_estival == null ? 100 : parseFloat(r.reparto_estival),
+  repartoInvernal: r.reparto_invernal == null ? 0 : parseFloat(r.reparto_invernal),
+})
+
 // ── Plantillas de costos (Proyectados) ────────────────────────────
 export const plantillaToDb = p => ({
   id: p.id,

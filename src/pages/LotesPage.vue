@@ -87,6 +87,44 @@
             </div>
           </div>
         </div>
+        <!-- Alquiler del lote -->
+        <div v-if="verPrecios && alquilerVer" style="margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
+          <p style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;margin:0 0 4px">🏠 Alquiler</p>
+          <div style="font-size:13px;color:#92400e">
+            {{ contratoLabel(alquilerVer.contrato) }} · Total <b>{{ fmtUSD(alquilerVer.total) }}</b>
+            <template v-if="verRow.a.tipoSiembra==='doble'">
+              <span style="margin-left:4px">· ☀️ {{ verRow.a.cultivoEstival?.nombre }} {{ fmtUSD(alquilerVer.estivalHa) }}/ha · 🌾 {{ verRow.a.cultivoInvernal?.nombre }} {{ fmtUSD(alquilerVer.invernalHa) }}/ha</span>
+            </template>
+            <template v-else><span style="margin-left:4px">· {{ fmtUSD(alquilerVer.simpleHa) }}/ha</span></template>
+          </div>
+        </div>
+
+        <!-- Indicadores por cultivo -->
+        <div v-if="verPrecios && indicadoresVer.length" style="margin-top:16px">
+          <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 6px">Indicadores</p>
+          <div style="overflow-x:auto;border:1px solid #f0ede8;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="background:#f9fafb;color:#6b7280">
+                  <th style="text-align:left;padding:6px 8px">Cultivo</th>
+                  <th style="text-align:right;padding:6px 8px">Rinde indif. s/alq</th>
+                  <th style="text-align:right;padding:6px 8px">Rinde indif. c/alq</th>
+                  <th style="text-align:right;padding:6px 8px">Margen contrib./tn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in indicadoresVer" :key="row.nombre" style="border-top:1px solid #f0ede8">
+                  <td style="padding:6px 8px;font-weight:600">{{ row.nombre }}</td>
+                  <td style="padding:6px 8px;text-align:right">{{ fmtRinde(row.ind.rindeIndifSinTn) }}</td>
+                  <td style="padding:6px 8px;text-align:right">{{ fmtRinde(row.ind.rindeIndifConTn) }}</td>
+                  <td style="padding:6px 8px;text-align:right;font-weight:700" :style="{color: row.ind.margenContribTn>=0 ? '#166534':'#dc2626'}">{{ fmtUSD(row.ind.margenContribTn) }}/tn</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos/ha ÷ precio (tn/ha y kg). Margen de contribución = precio − costo total/ha ÷ rinde.</p>
+        </div>
+
         <!-- Insumos reales del lote -->
         <div style="margin-top:18px">
           <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 6px">Insumos usados (reales)</p>
@@ -171,7 +209,7 @@ import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
-import { calcLote, pieCostosPorCategoria } from '../utils/calculations'
+import { calcLote, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerPorCultivo, indicadoresCultivo } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -237,6 +275,36 @@ const pieData = computed(() => {
 const resumenVer = computed(() => verRow.value
   ? agruparEnSecciones(filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value), verRow.value.ha)
   : { secciones: [], total: 0, totalHa: 0 })
+
+// ── Alquiler del lote (contrato) ──────────────────────────────────
+const alquilerVer = computed(() => {
+  if (!verRow.value) return null
+  const c = store.contratoDeLote(verRow.value.a.loteId, store.campania)
+  if (!c) return null
+  return { contrato: c, ...alquilerPorCultivo(c, verRow.value.a, verRow.value.ha, ctx.value.cultivosPrecio) }
+})
+const contratoLabel = c => c
+  ? (c.tipoContrato === 'quintales_fijos'
+      ? `${fmtNum(c.cantidad)} qq/ha fijos (ref. ${c.cultivoReferencia})`
+      : `${fmtNum(c.cantidad)}% de la cosecha (ref. ${c.cultivoReferencia})`)
+  : ''
+
+// ── Indicadores por cultivo (rinde de indiferencia + margen contrib./tn) ──
+const indicadoresVer = computed(() => {
+  if (!verRow.value) return []
+  const a = verRow.value.a
+  const alq = alquilerVer.value
+  const mk = (cultivo, alquilerHaContrato) => {
+    if (!cultivo?.nombre) return null
+    const alquilerHa = alq ? (alquilerHaContrato || 0) : alquilerHaItems(cultivo)  // si no hay contrato, usa ítem 'arrendamiento'
+    return { nombre: cultivo.nombre, ind: indicadoresCultivo({
+      costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, precioTn: cultivo.precioVentaTn, rindeQq: cultivo.rendimientoQq,
+    }) }
+  }
+  if (a.tipoSiembra === 'doble') return [mk(a.cultivoEstival, alq?.estivalHa), mk(a.cultivoInvernal, alq?.invernalHa)].filter(Boolean)
+  return [mk(a.cultivo, alq?.simpleHa)].filter(Boolean)
+})
+const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).toLocaleString('es-AR')} kg)` : '—'
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
 function excelLote(row) {

@@ -35,6 +35,13 @@
                 <p :style="{fontWeight:800,fontSize:'17px',color:d.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(d.margenTotal) }}</p>
               </div>
             </div>
+            <!-- Indicadores -->
+            <div style="background:#f9fafb;border:1px solid #eef0f2;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#374151">
+              <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 4px">Indicadores</p>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(d.ind.rindeIndifSinTn) }}</b></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. c/alq</span><b>{{ fmtRinde(d.ind.rindeIndifConTn) }}</b></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b></div>
+            </div>
           </template>
           <button @click="editProy=store.proyecciones.find(p=>p.cultivo===d.cultivo)"
             style="width:100%;padding:7px;border-radius:7px;border:1.5px solid #3a6b35;background:#fff;color:#3a6b35;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
@@ -123,7 +130,7 @@ import SvgHBar from '../components/charts/SvgHBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
-import { calcCostoHa, calcIngresoHa } from '../utils/calculations'
+import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, indicadoresCultivo } from '../utils/calculations'
 import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
@@ -150,8 +157,15 @@ const calcHaCultivo = cultivo => store.asignaciones
 
 const barData  = computed(() => store.proyecciones.map(p => {
   const ha = calcHaCultivo(p.cultivo), costoHa = calcCostoHa({ itemsCosto: p.itemsCosto || [] }), ingHa = calcIngresoHa(p)
-  return { cultivo: p.cultivo, tipo: p.tipo, costoHa, ingHa, margenHa: ingHa - costoHa, margenTotal: (ingHa - costoHa) * ha, ha }
+  // Indicadores: el alquiler de Proyectados sale del ítem 'arrendamiento' del presupuesto.
+  const ind = indicadoresCultivo({
+    costoSinAlqHa: costoHaSinAlquiler(p), alquilerHa: alquilerHaItems(p),
+    precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
+  })
+  return { cultivo: p.cultivo, tipo: p.tipo, costoHa, ingHa, margenHa: ingHa - costoHa, margenTotal: (ingHa - costoHa) * ha, ha, ind }
 }).sort((a, b) => b.margenHa - a.margenHa))
+
+const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).toLocaleString('es-AR')} kg)` : '—'
 
 const totalMB = computed(() => barData.value.reduce((s, d) => s + d.margenTotal, 0))
 
