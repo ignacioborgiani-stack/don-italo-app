@@ -169,21 +169,24 @@ export const useGranjaStore = defineStore('granja', () => {
   }
 
   // ── Propietario: permisos por miembro ──────────────────────────
-  // Devuelve { modulos: {modulo:{ver,editar,verPrecios}}, lotes: [lote_id] }
+  // Devuelve { modulos: {modulo:{ver,editar,verPrecios}}, lotes: [lote_id], campanas: [campana_id] }
   async function loadPermisosMiembro(miembroId) {
-    const [{ data: ps, error: e1 }, { data: pls, error: e2 }] = await Promise.all([
+    const [{ data: ps, error: e1 }, { data: pls, error: e2 }, { data: pcs, error: e3 }] = await Promise.all([
       supabase.from('granja_permisos').select('*').eq('miembro_id', miembroId),
       supabase.from('granja_permisos_lotes').select('*').eq('miembro_id', miembroId),
+      supabase.from('granja_permisos_campanas').select('*').eq('miembro_id', miembroId),
     ])
-    if (e1) throw e1; if (e2) throw e2
+    if (e1) throw e1; if (e2) throw e2; if (e3) throw e3
     const modulos = {}
     for (const p of ps || []) modulos[p.modulo] = { ver: p.puede_ver, editar: p.puede_editar, verPrecios: p.ver_precios }
-    const lotes = (pls || []).filter(r => r.acceso).map(r => r.lote_id)
-    return { modulos, lotes }
+    const lotes    = (pls || []).filter(r => r.acceso).map(r => r.lote_id)
+    const campanas = (pcs || []).filter(r => r.acceso).map(r => r.campana_id)
+    return { modulos, lotes, campanas }
   }
 
-  // Guarda permisos de un miembro: upsert de los 7 módulos + reescribe la whitelist de lotes.
-  async function guardarPermisosMiembro(miembroId, modulos, lotes) {
+  // Guarda permisos de un miembro: upsert de los 7 módulos + reescribe las
+  // whitelists de lotes y de campañas (borrar y volver a insertar lo concedido).
+  async function guardarPermisosMiembro(miembroId, modulos, lotes, campanas) {
     const filasMod = MODULOS.map(m => ({
       miembro_id: miembroId,
       modulo: m.key,
@@ -193,13 +196,19 @@ export const useGranjaStore = defineStore('granja', () => {
     }))
     const { error: e1 } = await supabase.from('granja_permisos').upsert(filasMod, { onConflict: 'miembro_id,modulo' })
     if (e1) throw e1
-    // Whitelist de lotes: borrar y volver a insertar los concedidos.
+    // Whitelist de lotes
     const { error: e2 } = await supabase.from('granja_permisos_lotes').delete().eq('miembro_id', miembroId)
     if (e2) throw e2
     if (lotes.length) {
-      const filasLotes = lotes.map(loteId => ({ miembro_id: miembroId, lote_id: loteId, acceso: true }))
-      const { error: e3 } = await supabase.from('granja_permisos_lotes').insert(filasLotes)
+      const { error: e3 } = await supabase.from('granja_permisos_lotes').insert(lotes.map(loteId => ({ miembro_id: miembroId, lote_id: loteId, acceso: true })))
       if (e3) throw e3
+    }
+    // Whitelist de campañas
+    const { error: e4 } = await supabase.from('granja_permisos_campanas').delete().eq('miembro_id', miembroId)
+    if (e4) throw e4
+    if ((campanas || []).length) {
+      const { error: e5 } = await supabase.from('granja_permisos_campanas').insert(campanas.map(campId => ({ miembro_id: miembroId, campana_id: campId, acceso: true })))
+      if (e5) throw e5
     }
   }
 

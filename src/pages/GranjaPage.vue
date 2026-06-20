@@ -175,6 +175,14 @@
           </label>
         </div>
 
+        <h3 :style="cardTitle" style="margin-top:18px">Campañas con acceso</h3>
+        <p v-if="!campanas.length" style="font-size:13px;color:#9ca3af">No hay campañas en tu granja.</p>
+        <div v-else style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px">
+          <label v-for="c in campanas" :key="c.id" style="display:flex;align-items:center;gap:7px;font-size:13px;color:#374151;cursor:pointer">
+            <input type="checkbox" :checked="permCampanas.has(c.id)" @change="toggleCampana(c.id)"/> {{ c.nombre }}
+          </label>
+        </div>
+
         <p v-if="errorPermisos" :style="avisoError" style="margin-top:10px">{{ errorPermisos }}</p>
         <div class="row justify-end q-gutter-sm q-mt-md">
           <q-btn flat label="Cancelar" @click="permisosOpen=false"/>
@@ -189,10 +197,13 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useGranjaStore, MODULOS } from '../stores/granja'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
+import { useMainStore } from '../stores/main'
 
-const granja  = useGranjaStore()
-const lmStore = useLotesMaestroStore()
-const lotes   = computed(() => lmStore.items)
+const granja   = useGranjaStore()
+const lmStore  = useLotesMaestroStore()
+const mainStore = useMainStore()
+const lotes    = computed(() => lmStore.items)
+const campanas = computed(() => mainStore.campanasRows)   // [{id, nombre}]
 
 // estilos compartidos
 const card      = 'background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)'
@@ -296,6 +307,7 @@ const permisosOpen   = ref(false)
 const permisosTarget = ref(null)
 const errorPermisos  = ref('')
 const permLotes      = ref(new Set())
+const permCampanas   = ref(new Set())
 const permModulos    = reactive(Object.fromEntries(MODULOS.map(m => [m.key, { ver: false, editar: false, verPrecios: false }])))
 
 async function abrirPermisos(m) {
@@ -303,13 +315,15 @@ async function abrirPermisos(m) {
   permisosTarget.value = m
   for (const mod of MODULOS) permModulos[mod.key] = { ver: false, editar: false, verPrecios: false }
   permLotes.value = new Set()
+  permCampanas.value = new Set()
   permisosOpen.value = true
   try {
-    const { modulos, lotes: lotesPermitidos } = await granja.loadPermisosMiembro(m.id)
+    const { modulos, lotes: lotesPermitidos, campanas: campanasPermitidas } = await granja.loadPermisosMiembro(m.id)
     for (const k of Object.keys(modulos)) {
       if (permModulos[k]) permModulos[k] = { ver: !!modulos[k].ver, editar: !!modulos[k].editar, verPrecios: !!modulos[k].verPrecios }
     }
     permLotes.value = new Set(lotesPermitidos)
+    permCampanas.value = new Set(campanasPermitidas)
   } catch (e) { errorPermisos.value = e.message || 'No se pudieron cargar los permisos' }
 }
 
@@ -318,12 +332,17 @@ function toggleLote(id) {
   s.has(id) ? s.delete(id) : s.add(id)
   permLotes.value = s
 }
+function toggleCampana(id) {
+  const s = new Set(permCampanas.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  permCampanas.value = s
+}
 
 async function guardarPermisos() {
   errorPermisos.value = ''
   busy.value = 'permisos'
   try {
-    await granja.guardarPermisosMiembro(permisosTarget.value.id, { ...permModulos }, [...permLotes.value])
+    await granja.guardarPermisosMiembro(permisosTarget.value.id, { ...permModulos }, [...permLotes.value], [...permCampanas.value])
     permisosOpen.value = false
   } catch (e) { errorPermisos.value = e.message || 'No se pudieron guardar los permisos' }
   finally { busy.value = null }

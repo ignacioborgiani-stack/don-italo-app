@@ -56,9 +56,9 @@
           </q-menu>
         </q-btn>
 
-        <!-- Campaign selector (solo el dueño gestiona campañas; el miembro usa la activa) -->
+        <!-- Campaign selector. El dueño gestiona todas; el miembro elige entre las habilitadas. -->
         <q-btn
-          v-if="granja.esPropietarioActivo"
+          v-if="granja.esPropietarioActivo || campanasOrdenadas.length"
           flat no-caps dense
           class="q-ml-sm"
           style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-weight:700;font-size:13px;padding:5px 12px"
@@ -77,19 +77,21 @@
                 <q-icon v-if="c===store.campania" name="check" size="16px" color="green-8"/>
               </q-item-section>
               <q-item-section>{{ c }}</q-item-section>
-              <q-item-section side v-if="campanasOrdenadas.length > 1">
+              <q-item-section side v-if="granja.esPropietarioActivo && campanasOrdenadas.length > 1">
                 <q-btn flat round dense size="sm" icon="delete_outline" color="grey-6"
                   v-close-popup @click.stop="pedirEliminar(c)">
                   <q-tooltip>Eliminar campaña</q-tooltip>
                 </q-btn>
               </q-item-section>
             </q-item>
-            <q-separator/>
-            <q-item clickable v-close-popup @click="openNueva"
-              style="padding:9px 14px;font-size:13px;font-weight:600;color:#2d5a27">
-              <q-item-section avatar style="min-width:24px"><q-icon name="add" size="16px"/></q-item-section>
-              <q-item-section>Nueva campaña</q-item-section>
-            </q-item>
+            <template v-if="granja.esPropietarioActivo">
+              <q-separator/>
+              <q-item clickable v-close-popup @click="openNueva"
+                style="padding:9px 14px;font-size:13px;font-weight:600;color:#2d5a27">
+                <q-item-section avatar style="min-width:24px"><q-icon name="add" size="16px"/></q-item-section>
+                <q-item-section>Nueva campaña</q-item-section>
+              </q-item>
+            </template>
           </q-menu>
         </q-btn>
 
