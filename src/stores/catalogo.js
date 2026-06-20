@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
+import { useGranjaStore } from './granja'
 import { MOCK_CATALOGO_INSUMOS, MOCK_CATALOGO_CULTIVOS, MOCK_CATALOGO_LABORES } from '../utils/catalogoData'
 import { catToDb, catFromDb, cultivoRefToDb, cultivoRefFromDb, laborToDb, laborFromDb } from '../utils/mappers'
 
@@ -12,7 +13,8 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   const cultivos = ref([])
   const labores  = ref([])
 
-  function getUid() { return useAuthStore().usuario?.id }
+  // user_id del dueño del contexto activo (mío, o del dueño si soy miembro invitado).
+  function getUid() { return useGranjaStore().activeOwnerId || useAuthStore().usuario?.id }
 
   const ordenarInsumos = arr => [...arr].sort((a, b) =>
     (a.familia || '').localeCompare(b.familia || '') || (a.nombre || '').localeCompare(b.nombre || '')
@@ -20,7 +22,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
 
   // ── Insumos ───────────────────────────────────────────────────
   async function loadCatalogo() {
-    const { data, error } = await supabase.from('catalogo_insumos').select('*').order('nombre')
+    const { data, error } = await supabase.from('catalogo_insumos').select('*').eq('user_id', getUid()).order('nombre')
     if (error) throw error
     items.value = ordenarInsumos((data || []).map(catFromDb))
   }
@@ -70,7 +72,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
 
   // ── Cultivos ──────────────────────────────────────────────────
   async function loadCultivos() {
-    const { data, error } = await supabase.from('catalogo_cultivos').select('*').order('nombre')
+    const { data, error } = await supabase.from('catalogo_cultivos').select('*').eq('user_id', getUid()).order('nombre')
     if (error) throw error
     cultivos.value = (data || []).map(cultivoRefFromDb)
   }
@@ -111,7 +113,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     (a.categoria || '').localeCompare(b.categoria || '') || (a.nombre || '').localeCompare(b.nombre || ''))
 
   async function loadLabores() {
-    const { data, error } = await supabase.from('catalogo_labores').select('*').order('nombre')
+    const { data, error } = await supabase.from('catalogo_labores').select('*').eq('user_id', getUid()).order('nombre')
     if (error) throw error
     labores.value = ordenarLabores((data || []).map(laborFromDb))
   }

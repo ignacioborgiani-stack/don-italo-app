@@ -18,17 +18,19 @@
           </thead>
           <tbody>
             <tr v-if="!filas.length">
-              <td colspan="9" style="padding:24px;text-align:center;color:#9ca3af">Sin lotes asignados a esta campaña. Usá "Asignar lote a esta campaña".</td>
+              <td :colspan="headers.length" style="padding:24px;text-align:center;color:#9ca3af">Sin lotes asignados a esta campaña. Usá "Asignar lote a esta campaña".</td>
             </tr>
             <tr v-for="(row, i) in filas" :key="row.a.id" :style="{background:i%2===0?'#fff':'#fafaf9',borderBottom:'1px solid #f0ede8'}">
               <td style="padding:8px 12px;font-weight:600;font-size:13px">{{ row.nombre }}</td>
               <td style="padding:8px 12px"><CultivoBadge :lote="row.a"/></td>
               <td style="padding:8px 12px;font-size:13px">{{ fmtNum(row.ha) }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#dc2626">{{ fmtUSD(row.calc.costoHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px">{{ fmtUSD(row.calc.costoHa*row.ha) }}</td>
-              <td style="padding:8px 12px;font-size:13px;color:#2d5a27;font-weight:600">{{ fmtUSD(row.calc.ingresoHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(row.calc.margenHa) }}</td>
-              <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(row.calc.margenHa*row.ha) }}</td>
+              <template v-if="verPrecios">
+                <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#dc2626">{{ fmtUSD(row.calc.costoHa) }}</td>
+                <td style="padding:8px 12px;font-size:13px">{{ fmtUSD(row.calc.costoHa*row.ha) }}</td>
+                <td style="padding:8px 12px;font-size:13px;color:#2d5a27;font-weight:600">{{ fmtUSD(row.calc.ingresoHa) }}</td>
+                <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(row.calc.margenHa) }}</td>
+                <td style="padding:8px 12px;font-size:13px;font-weight:700" :style="{color:row.calc.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(row.calc.margenHa*row.ha) }}</td>
+              </template>
               <td style="padding:8px 12px">
                 <div style="display:flex;gap:4px">
                   <button @click="verRow=row" style="padding:3px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer;font-size:11px;color:#1d4ed8">Ver</button>
@@ -42,11 +44,13 @@
             <tr style="background:#2d5a27">
               <td colspan="2" style="padding:9px 12px;color:#fff;font-weight:700;font-size:13px">TOTALES</td>
               <td style="padding:9px 12px;color:#fff;font-weight:700">{{ totHA.toLocaleString('es-AR') }}</td>
-              <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totC/Math.max(totHA,1)) }}</td>
-              <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtK(totC) }}</td>
-              <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totI/Math.max(totHA,1)) }}</td>
-              <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totM/Math.max(totHA,1)) }}</td>
-              <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtK(totM) }}</td>
+              <template v-if="verPrecios">
+                <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totC/Math.max(totHA,1)) }}</td>
+                <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtK(totC) }}</td>
+                <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totI/Math.max(totHA,1)) }}</td>
+                <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totM/Math.max(totHA,1)) }}</td>
+                <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtK(totM) }}</td>
+              </template>
               <td/>
             </tr>
           </tfoot>
@@ -71,7 +75,7 @@
             <p :style="{fontWeight:700,color:c||'#111',fontSize:'15px'}">{{ val }}</p>
           </div>
         </div>
-        <div v-if="pieData.length" style="display:flex;gap:16px;align-items:center;margin-top:14px">
+        <div v-if="verPrecios && pieData.length" style="display:flex;gap:16px;align-items:center;margin-top:14px">
           <SvgDonut :data="pieData" :width="170" :height="170" :inner-r="42" :outer-r="78" :tooltip-fmt="v=>fmtUSD(v)+'/ha'"/>
           <div style="flex:1">
             <div v-for="(d,i) in pieData" :key="i" style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
@@ -93,8 +97,10 @@
                   <th style="text-align:left;padding:6px 8px">Insumo</th>
                   <th style="text-align:right;padding:6px 8px">Cantidad</th>
                   <th style="text-align:left;padding:6px 8px">Unidad</th>
-                  <th style="text-align:right;padding:6px 8px">$/ha</th>
-                  <th style="text-align:right;padding:6px 8px">Total</th>
+                  <template v-if="verPrecios">
+                    <th style="text-align:right;padding:6px 8px">$/ha</th>
+                    <th style="text-align:right;padding:6px 8px">Total</th>
+                  </template>
                 </tr>
               </thead>
               <tbody>
@@ -104,11 +110,13 @@
                     <td style="padding:6px 8px">{{ f.insumo }}<span v-if="verRow.a.tipoSiembra==='doble'" style="color:#9ca3af"> · {{ f.cultivo }}</span></td>
                     <td style="padding:6px 8px;text-align:right">{{ f.cantidad }}</td>
                     <td style="padding:6px 8px">{{ f.unidad }}</td>
-                    <td style="padding:6px 8px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
-                    <td style="padding:6px 8px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                    <template v-if="verPrecios">
+                      <td style="padding:6px 8px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                      <td style="padding:6px 8px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                    </template>
                   </tr>
                 </template>
-                <tr v-if="resumenVer.secciones.length" style="border-top:2px solid #2d5a27;background:#fafaf9">
+                <tr v-if="resumenVer.secciones.length && verPrecios" style="border-top:2px solid #2d5a27;background:#fafaf9">
                   <td style="padding:7px 8px;font-weight:800;color:#2d5a27">TOTAL</td>
                   <td/><td/>
                   <td style="padding:7px 8px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(resumenVer.totalHa) }}</td>
@@ -121,7 +129,7 @@
         </div>
 
         <div class="row justify-between items-center q-mt-md">
-          <q-btn unelevated color="positive" icon="download" label="Descargar Excel" @click="excelLote(verRow)"/>
+          <q-btn v-if="verPrecios" unelevated color="positive" icon="download" label="Descargar Excel" @click="excelLote(verRow)"/>
           <q-btn flat label="Cerrar" @click="verRow=null"/>
         </div>
       </q-card>
@@ -158,6 +166,7 @@ import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useCatalogoStore } from '../stores/catalogo'
+import { useGranjaStore } from '../stores/granja'
 import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
@@ -169,11 +178,16 @@ import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 const store   = useMainStore()
 const lmStore = useLotesMaestroStore()
 const catStore = useCatalogoStore()
+const granja  = useGranjaStore()
+// Permisos del miembro (el dueño ve precios y todos los lotes).
+const verPrecios = computed(() => granja.verPrecios('costos_contables'))
 const ctx = computed(() => ({
   catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
   cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
 }))
-const headers = ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
+const headers = computed(() => verPrecios.value
+  ? ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
+  : ['Lote','Cultivo','Ha','Acciones'])
 
 const asignarModal = ref(null)
 const verRow  = ref(null)
@@ -181,6 +195,7 @@ const bajaRow = ref(null)
 
 const filas = computed(() => store.asignaciones
   .filter(a => a.campaña === store.campania)
+  .filter(a => granja.tieneAccesoLote(a.loteId))   // miembro: sólo lotes permitidos
   .map(a => {
     const lote = lmStore.byId(a.loteId)
     return { a, nombre: lote?.nombre || '—', ha: parseFloat(lote?.ha) || 0, calc: calcLote(a) }
@@ -195,8 +210,12 @@ const totM  = computed(() => totI.value - totC.value)
 const detailStats = computed(() => {
   if (!verRow.value) return []
   const { a, ha, calc } = verRow.value
-  return [
+  const base = [
     ['Campaña', a.campaña], ['Ha', `${fmtNum(ha)} ha`], ['Tipo', a.tipoSiembra==='doble'?'🌾☀️ Doble':'🌱 Simple'],
+  ]
+  if (!verPrecios.value) return base   // miembro sin permiso de precios: sólo datos sin plata
+  return [
+    ...base,
     ['Costo/ha',  fmtUSD(calc.costoHa),  '#dc2626'],
     ['Ingreso/ha',fmtUSD(calc.ingresoHa),'#2d5a27'],
     ['Margen/ha', fmtUSD(calc.margenHa), calc.margenHa>=0?'#3a6b35':'#dc2626'],

@@ -44,15 +44,30 @@ export const useMainStore = defineStore('main', () => {
   function getUid() {
     return useAuthStore().usuario?.id
   }
+  // user_id de los DATOS a cargar/escribir: el del dueño del contexto activo
+  // (mi propia cuenta si estoy en mi granja, o el dueño si soy miembro invitado).
+  function getOwnerId() {
+    return useGranjaStore().activeOwnerId || getUid()
+  }
 
   // ── Carga de datos (post-login) ───────────────────────────────
   async function loadData() {
+    // 1) Granja/contexto primero: define de QUIÉN se cargan los datos.
+    try { await useGranjaStore().loadGranja() } catch (e) { console.warn('[granjas] tabla no disponible:', e?.message) }
+    // 2) Datos del contexto activo (propio o del dueño si soy miembro).
+    await reloadDatos()
+  }
+
+  // Recarga todos los datos scopeados al dueño del contexto activo.
+  // Se llama al entrar y cada vez que se cambia de granja en el selector.
+  async function reloadDatos() {
     try {
+      const owner = getOwnerId()
       const [lr, pr, sr, cr] = await Promise.all([
-        supabase.from('lotes').select('*'),
-        supabase.from('proyecciones').select('*'),
-        supabase.from('stocks').select('*'),
-        supabase.from('configuracion').select('*'),
+        supabase.from('lotes').select('*').eq('user_id', owner),
+        supabase.from('proyecciones').select('*').eq('user_id', owner),
+        supabase.from('stocks').select('*').eq('user_id', owner),
+        supabase.from('configuracion').select('*').eq('user_id', owner),
       ])
       if (lr.error) throw lr.error
       lotes.value        = (lr.data || []).map(loteFromDb)
@@ -68,10 +83,9 @@ export const useMainStore = defineStore('main', () => {
       try { await loadAsignaciones() } catch (e) { console.warn('[asignaciones_campana] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
-      try { await useGranjaStore().loadGranja() } catch (e) { console.warn('[granjas] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
-      console.error('[loadData]', e?.message)
+      console.error('[reloadDatos]', e?.message)
       sbConnected.value = false
     }
   }
@@ -79,9 +93,11 @@ export const useMainStore = defineStore('main', () => {
   // ── Campañas ──────────────────────────────────────────────────
   async function loadCampanas() {
     const userId = getUid()
-    const { data } = await supabase.from('campanas').select('*')
+    const owner = getOwnerId()
+    const { data } = await supabase.from('campanas').select('*').eq('user_id', owner)
     let rows = data || []
-    if (!rows.length) {
+    // Sólo sembramos campañas en NUESTRA propia granja (un miembro no crea campañas del dueño).
+    if (!rows.length && useGranjaStore().esPropietarioActivo) {
       // Primer arranque: sembrar con las campañas que ya aparecen en los lotes + defaults
       const enLotes = lotes.value.map(l => l.campaña).filter(Boolean)
       const nombres = [...new Set([...CAMPAÑAS, ...enLotes])]
@@ -131,13 +147,13 @@ export const useMainStore = defineStore('main', () => {
 
   // ── Costos fijos de estructura (por campaña) ──────────────────
   async function loadCostosFijos() {
-    const { data, error } = await supabase.from('costos_fijos').select('*').order('created_at')
+    const { data, error } = await supabase.from('costos_fijos').select('*').eq('user_id', getOwnerId()).order('created_at')
     if (error) throw error
     costosFijos.value = (data || []).map(costoFijoFromDb)
   }
 
   async function addCostoFijo(cf) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const campanaId = await ensureCampanaIdActiva()
     const n = { ...cf, id: uid(), campanaId }
     const { data, error } = await supabase.from('costos_fijos').insert({ ...costoFijoToDb(n), user_id: userId }).select().single()
@@ -166,7 +182,7 @@ export const useMainStore = defineStore('main', () => {
     const anteriorId = campanasRows.value.find(c => c.nombre === anterior)?.id
     const origen = costosFijos.value.filter(c => c.campanaId === anteriorId)
     if (!origen.length) throw new Error(`La campaña anterior (${anterior}) no tiene costos fijos cargados.`)
-    const userId = getUid()
+    const userId = getOwnerId()
     const campanaId = await ensureCampanaIdActiva()
     const filas = origen.map(c => ({ ...costoFijoToDb({ ...c, id: uid(), campanaId }), user_id: userId }))
     const { data, error } = await supabase.from('costos_fijos').insert(filas).select()
@@ -203,13 +219,13 @@ export const useMainStore = defineStore('main', () => {
 
   // ── Asignaciones por campaña (lote ↔ campaña ↔ cultivo + costos) ──
   async function loadAsignaciones() {
-    const { data, error } = await supabase.from('asignaciones_campana').select('*')
+    const { data, error } = await supabase.from('asignaciones_campana').select('*').eq('user_id', getOwnerId())
     if (error) throw error
     asignaciones.value = (data || []).map(asignacionFromDb)
   }
 
   async function addAsignacion(a) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const n = { ...a, id: uid() }
     const { data, error } = await supabase.from('asignaciones_campana').insert({ ...asignacionToDb(n), user_id: userId }).select().single()
     if (error) throw error
@@ -231,7 +247,7 @@ export const useMainStore = defineStore('main', () => {
 
   // ── Lotes ─────────────────────────────────────────────────────
   async function addLote(l) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const n = { ...l, id: uid() }
     const { data, error } = await supabase.from('lotes').insert({ ...loteToDb(n), user_id: userId }).select().single()
     if (error) throw error
@@ -252,7 +268,7 @@ export const useMainStore = defineStore('main', () => {
 
   // ── Proyecciones ──────────────────────────────────────────────
   async function updProy(cultivo, d) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const existing = proyecciones.value.find(p => p.cultivo === cultivo)
     const upd = { ...existing, ...d }
 
@@ -269,7 +285,7 @@ export const useMainStore = defineStore('main', () => {
 
   // ── Stocks ────────────────────────────────────────────────────
   async function addStock(s) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const n = { ...s, id: uid() }
     const { data, error } = await supabase.from('stocks').insert({ ...stToDb(n), user_id: userId }).select().single()
     if (error) throw error
@@ -378,7 +394,7 @@ export const useMainStore = defineStore('main', () => {
   return {
     sbConnected, campania, campanas, campanasRows, tipoCambio, lotes, asignaciones, proyecciones, stocks, costosFijos, chatMessages, apiKey,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,
-    loadData, cargarDatosDemo, resetData,
+    loadData, reloadDatos, cargarDatosDemo, resetData,
     loadCampanas, addCampana, delCampana, setTipoCambio,
     addLote, updLote, delLote,
     loadAsignaciones, addAsignacion, updAsignacion, delAsignacion,

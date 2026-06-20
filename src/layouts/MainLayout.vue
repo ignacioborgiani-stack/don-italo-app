@@ -19,7 +19,7 @@
           style="flex:1"
           @update:model-value="onTab"
         >
-          <q-tab v-for="t in TABS" :key="t.name" :name="t.name"
+          <q-tab v-for="t in visibleTabs" :key="t.name" :name="t.name"
             :style="activeTab===t.name?'background:#4a8a44;border-bottom:3px solid #a8d5a2':'border-bottom:3px solid transparent'"
           >
             <template #default>
@@ -28,8 +28,37 @@
           </q-tab>
         </q-tabs>
 
-        <!-- Campaign selector -->
+        <!-- Granja selector (solo si hay más de un contexto: dueño + granjas donde sos miembro) -->
         <q-btn
+          v-if="granja.contextos.length > 1"
+          flat no-caps dense
+          class="q-ml-sm"
+          style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-weight:700;font-size:13px;padding:5px 12px"
+        >
+          <span style="margin-right:6px">🚜</span>{{ granja.contextoActual?.nombre }}
+          <q-icon name="expand_more" size="16px" class="q-ml-xs"/>
+          <q-menu anchor="bottom right" self="top right" style="border-radius:10px;border:1px solid #d4cfc4;min-width:220px">
+            <div style="padding:8px 14px 6px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em">Granja activa</div>
+            <q-item
+              v-for="c in granja.contextos" :key="c.id || 'propia'"
+              clickable v-close-popup
+              @click="onCambiarContexto(c.id)"
+              :style="{padding:'8px 6px 8px 14px',fontSize:'13px',fontWeight:c.id===granja.contextoId?700:500,color:c.id===granja.contextoId?'#2d5a27':'#374151',background:c.id===granja.contextoId?'#f0fdf4':'transparent'}"
+            >
+              <q-item-section avatar style="min-width:24px">
+                <q-icon v-if="c.id===granja.contextoId" name="check" size="16px" color="green-8"/>
+              </q-item-section>
+              <q-item-section>
+                {{ c.nombre }}
+                <div v-if="!c.esPropio" style="font-size:10px;color:#9ca3af">Como miembro</div>
+              </q-item-section>
+            </q-item>
+          </q-menu>
+        </q-btn>
+
+        <!-- Campaign selector (solo el dueño gestiona campañas; el miembro usa la activa) -->
+        <q-btn
+          v-if="granja.esPropietarioActivo"
           flat no-caps dense
           class="q-ml-sm"
           style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-weight:700;font-size:13px;padding:5px 12px"
@@ -202,14 +231,19 @@ async function confirmarEliminar() {
 }
 
 const TABS = [
-  { name: 'dashboard',   label: 'Dashboard',          e: '📊', path: '/' },
-  { name: 'lotesMaestro',label: 'Lotes',              e: '🗺️', path: '/lotes-maestro' },
-  { name: 'catalogo',    label: 'Catálogo',           e: '📚', path: '/catalogo' },
-  { name: 'lotes',       label: 'Costos Contables',   e: '📒', path: '/lotes' },
-  { name: 'proyectados', label: 'Costos Proyectados', e: '📈', path: '/proyectados' },
-  { name: 'stocks',      label: 'Stocks',             e: '📦', path: '/stocks' },
-  { name: 'chat',        label: 'Chat IA',            e: '🤖', path: '/chat' },
+  { name: 'dashboard',   label: 'Dashboard',          e: '📊', path: '/',             modulo: 'dashboard' },
+  { name: 'lotesMaestro',label: 'Lotes',              e: '🗺️', path: '/lotes-maestro', modulo: 'lotes' },
+  { name: 'catalogo',    label: 'Catálogo',           e: '📚', path: '/catalogo',      modulo: 'catalogo' },
+  { name: 'lotes',       label: 'Costos Contables',   e: '📒', path: '/lotes',         modulo: 'costos_contables' },
+  { name: 'proyectados', label: 'Costos Proyectados', e: '📈', path: '/proyectados',   modulo: 'costos_proyectados' },
+  { name: 'stocks',      label: 'Stocks',             e: '📦', path: '/stocks',        modulo: 'stocks' },
+  { name: 'chat',        label: 'Chat IA',            e: '🤖', path: '/chat',          modulo: null }, // solo dueño
 ]
+
+// El dueño ve todas; un miembro sólo los módulos habilitados (chat = solo dueño).
+const visibleTabs = computed(() => granja.esPropietarioActivo
+  ? TABS
+  : TABS.filter(t => t.modulo && granja.puedeVer(t.modulo)))
 
 const pathToName = { '/': 'dashboard', '/lotes-maestro': 'lotesMaestro', '/catalogo': 'catalogo', '/lotes': 'lotes', '/proyectados': 'proyectados', '/stocks': 'stocks', '/chat': 'chat' }
 const activeTab  = computed(() => pathToName[route.path] || 'dashboard')
@@ -217,6 +251,14 @@ const activeTab  = computed(() => pathToName[route.path] || 'dashboard')
 function onTab(name) {
   const t = TABS.find(t => t.name === name)
   if (t) router.push(t.path)
+}
+
+// Cambiar de granja: recarga datos del nuevo dueño y, si la pantalla actual ya no
+// está permitida, lleva a la primera disponible.
+async function onCambiarContexto(id) {
+  await granja.setContexto(id)
+  const visibles = visibleTabs.value.map(t => t.path)
+  if (!visibles.includes(route.path)) router.push(visibles[0] || '/granja')
 }
 
 async function doLogout() {

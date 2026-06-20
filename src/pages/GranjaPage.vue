@@ -90,6 +90,7 @@
             </div>
             <div class="row items-center q-gutter-xs">
               <span :style="badge(m.estado)">{{ estadoLabel(m.estado) }}</span>
+              <q-btn v-if="m.estado==='aceptado'" flat dense size="sm" color="primary" icon="tune" label="Permisos" @click="abrirPermisos(m)"/>
               <q-btn flat round dense size="sm" icon="delete_outline" color="grey-6" @click="pedirQuitar(m)">
                 <q-tooltip>Quitar</q-tooltip>
               </q-btn>
@@ -133,14 +134,65 @@
         </div>
       </q-card>
     </q-dialog>
+
+    <!-- Permisos del miembro -->
+    <q-dialog v-model="permisosOpen">
+      <q-card style="width:580px;max-width:96vw;border-radius:14px;padding:26px;max-height:92vh;overflow-y:auto">
+        <div class="row items-center justify-between q-mb-sm">
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Permisos</h2>
+          <q-btn flat round dense icon="close" @click="permisosOpen=false"/>
+        </div>
+        <p style="font-size:12px;color:#6b7280;margin:0 0 14px">{{ permisosTarget?.emailInvitado }}</p>
+
+        <h3 :style="cardTitle">Módulos</h3>
+        <table style="width:100%;font-size:13px;border-collapse:collapse">
+          <thead>
+            <tr style="color:#9ca3af;font-size:10px;text-transform:uppercase">
+              <th style="text-align:left;padding:4px 0">Módulo</th>
+              <th style="width:52px">Ver</th>
+              <th style="width:52px">Editar</th>
+              <th style="width:74px">Ver precios</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in MODULOS" :key="m.key" style="border-top:1px solid #f3f4f6">
+              <td style="padding:7px 0;color:#374151">{{ m.label }}</td>
+              <td style="text-align:center"><input type="checkbox" v-model="permModulos[m.key].ver"/></td>
+              <td style="text-align:center"><input type="checkbox" v-model="permModulos[m.key].editar" :disabled="!permModulos[m.key].ver"/></td>
+              <td style="text-align:center">
+                <input v-if="m.costos" type="checkbox" v-model="permModulos[m.key].verPrecios" :disabled="!permModulos[m.key].ver"/>
+                <span v-else style="color:#d1d5db">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 :style="cardTitle" style="margin-top:18px">Lotes con acceso</h3>
+        <p v-if="!lotes.length" style="font-size:13px;color:#9ca3af">No hay lotes cargados en tu granja.</p>
+        <div v-else style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px">
+          <label v-for="l in lotes" :key="l.id" style="display:flex;align-items:center;gap:7px;font-size:13px;color:#374151;cursor:pointer">
+            <input type="checkbox" :checked="permLotes.has(l.id)" @change="toggleLote(l.id)"/> {{ l.nombre }}
+          </label>
+        </div>
+
+        <p v-if="errorPermisos" :style="avisoError" style="margin-top:10px">{{ errorPermisos }}</p>
+        <div class="row justify-end q-gutter-sm q-mt-md">
+          <q-btn flat label="Cancelar" @click="permisosOpen=false"/>
+          <q-btn unelevated color="primary" label="Guardar permisos" :loading="busy==='permisos'" @click="guardarPermisos"/>
+        </div>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useGranjaStore } from '../stores/granja'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useGranjaStore, MODULOS } from '../stores/granja'
+import { useLotesMaestroStore } from '../stores/lotesMaestro'
 
-const granja = useGranjaStore()
+const granja  = useGranjaStore()
+const lmStore = useLotesMaestroStore()
+const lotes   = computed(() => lmStore.items)
 
 // estilos compartidos
 const card      = 'background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)'
@@ -236,6 +288,44 @@ async function responder(inv, aceptar) {
   busy.value = inv.id
   try { await granja.responderInvitacion(inv.id, aceptar) }
   catch (e) { errorGeneral.value = e.message || 'No se pudo responder la invitación' }
+  finally { busy.value = null }
+}
+
+// ── Permisos por miembro (panel del propietario) ───────────────
+const permisosOpen   = ref(false)
+const permisosTarget = ref(null)
+const errorPermisos  = ref('')
+const permLotes      = ref(new Set())
+const permModulos    = reactive(Object.fromEntries(MODULOS.map(m => [m.key, { ver: false, editar: false, verPrecios: false }])))
+
+async function abrirPermisos(m) {
+  errorPermisos.value = ''
+  permisosTarget.value = m
+  for (const mod of MODULOS) permModulos[mod.key] = { ver: false, editar: false, verPrecios: false }
+  permLotes.value = new Set()
+  permisosOpen.value = true
+  try {
+    const { modulos, lotes: lotesPermitidos } = await granja.loadPermisosMiembro(m.id)
+    for (const k of Object.keys(modulos)) {
+      if (permModulos[k]) permModulos[k] = { ver: !!modulos[k].ver, editar: !!modulos[k].editar, verPrecios: !!modulos[k].verPrecios }
+    }
+    permLotes.value = new Set(lotesPermitidos)
+  } catch (e) { errorPermisos.value = e.message || 'No se pudieron cargar los permisos' }
+}
+
+function toggleLote(id) {
+  const s = new Set(permLotes.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  permLotes.value = s
+}
+
+async function guardarPermisos() {
+  errorPermisos.value = ''
+  busy.value = 'permisos'
+  try {
+    await granja.guardarPermisosMiembro(permisosTarget.value.id, { ...permModulos }, [...permLotes.value])
+    permisosOpen.value = false
+  } catch (e) { errorPermisos.value = e.message || 'No se pudieron guardar los permisos' }
   finally { busy.value = null }
 }
 </script>

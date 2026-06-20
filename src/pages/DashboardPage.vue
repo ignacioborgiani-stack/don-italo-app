@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:28px">
+    <div v-if="verPlata" style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:28px">
       <ResultadoNetoCard :bruto="resultadoBruto" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto de la campaña"/>
     </div>
 
@@ -34,7 +34,7 @@
         <p v-else style="text-align:center;color:#9ca3af;padding:40px">Sin lotes para {{ store.campania }}</p>
       </div>
 
-      <div style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div v-if="verPlata" style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Costo vs Ingreso por lote (USD/ha)</h3>
         <SvgVBar v-if="barData.length" :data="barData" :height="370"/>
         <p v-else style="text-align:center;color:#9ca3af;padding:60px">Sin datos para {{ store.campania }}</p>
@@ -47,6 +47,7 @@
 import { computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
+import { useGranjaStore } from '../stores/granja'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
@@ -56,6 +57,9 @@ import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
+const granja   = useGranjaStore()
+// Un miembro sólo ve montos si tiene permiso de precios en algún módulo de costos.
+const verPlata = computed(() => granja.verPrecios('costos_contables') || granja.verPrecios('costos_proyectados'))
 // Asignaciones de la campaña activa, con ha y nombre inyectados desde el catastro.
 const filtered = computed(() => store.asignaciones
   .filter(a => a.campaña === store.campania)
@@ -67,12 +71,15 @@ const resultadoBruto = computed(() => filtered.value.reduce((s, l) => { const c 
 const nDoble  = computed(() => filtered.value.filter(l => l.tipoSiembra === 'doble').length)
 const haDoble = computed(() => filtered.value.filter(l => l.tipoSiembra === 'doble').reduce((s, l) => s + (parseFloat(l.ha) || 0), 0))
 
-const statCards = computed(() => [
-  { l: 'Ha físicas totales',    v: haFisicas.value.toLocaleString('es-AR'),    s: 'Campaña ' + store.campania },
-  { l: 'Ha sembradas totales',  v: haSembradas.value.toLocaleString('es-AR'),  s: 'Doble cultivo × 2', c: '#e8a838' },
-  { l: 'Lotes activos',         v: filtered.value.length,                      c: '#5b8dd9' },
-  { l: 'Resultado bruto proy.', v: fmtK(resultadoBruto.value),                 s: 'Ingreso − costo', c: resultadoBruto.value >= 0 ? '#3a6b35' : '#dc2626' },
-])
+const statCards = computed(() => {
+  const cards = [
+    { l: 'Ha físicas totales',    v: haFisicas.value.toLocaleString('es-AR'),    s: 'Campaña ' + store.campania },
+    { l: 'Ha sembradas totales',  v: haSembradas.value.toLocaleString('es-AR'),  s: 'Doble cultivo × 2', c: '#e8a838' },
+    { l: 'Lotes activos',         v: filtered.value.length,                      c: '#5b8dd9' },
+  ]
+  if (verPlata.value) cards.push({ l: 'Resultado bruto proy.', v: fmtK(resultadoBruto.value), s: 'Ingreso − costo', c: resultadoBruto.value >= 0 ? '#3a6b35' : '#dc2626' })
+  return cards
+})
 
 const donutData = computed(() => {
   const map = {}

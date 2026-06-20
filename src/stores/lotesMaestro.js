@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
+import { useGranjaStore } from './granja'
 import { loteMaestroToDb, loteMaestroFromDb } from '../utils/mappers'
 
 const uid = () => crypto.randomUUID()
@@ -9,16 +10,17 @@ const uid = () => crypto.randomUUID()
 export const useLotesMaestroStore = defineStore('lotesMaestro', () => {
   const items = ref([])
 
-  function getUid() { return useAuthStore().usuario?.id }
+  // user_id del dueño del contexto activo (mío, o del dueño si soy miembro invitado).
+  function getOwnerId() { return useGranjaStore().activeOwnerId || useAuthStore().usuario?.id }
 
   async function loadLotesMaestro() {
-    const { data, error } = await supabase.from('lotes_maestro').select('*').order('nombre')
+    const { data, error } = await supabase.from('lotes_maestro').select('*').eq('user_id', getOwnerId()).order('nombre')
     if (error) throw error
     items.value = (data || []).map(loteMaestroFromDb)
   }
 
   async function addLote(lote) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const n = { ...lote, id: uid() }
     const { data, error } = await supabase
       .from('lotes_maestro')

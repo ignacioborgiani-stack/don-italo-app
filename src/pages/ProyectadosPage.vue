@@ -2,7 +2,7 @@
   <q-page style="padding:24px">
     <div class="row items-center justify-between q-mb-lg">
       <h2 style="font-size:18px;font-weight:700;margin:0">Costos Proyectados</h2>
-      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 16px;font-size:13px">
+      <div v-if="verPrecios" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 16px;font-size:13px">
         Margen total campaña: <b :style="{color:totalMB>=0?'#3a6b35':'#dc2626',fontSize:'16px'}">{{ fmtK(totalMB) }}</b>
       </div>
     </div>
@@ -17,23 +17,25 @@
           </div>
         </div>
         <div style="padding:12px 16px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div v-for="[l,v,c] in [['Costo/ha',fmtUSD(d.costoHa),'#dc2626'],['Ingreso/ha',fmtUSD(d.ingHa),'#2d5a27']]" :key="l"
-              style="background:#f9fafb;border-radius:7px;padding:7px 10px">
-              <p style="font-size:10px;color:#9ca3af">{{ l }}</p>
-              <p :style="{fontSize:'14px',fontWeight:700,color:c}">{{ v }}</p>
+          <template v-if="verPrecios">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+              <div v-for="[l,v,c] in [['Costo/ha',fmtUSD(d.costoHa),'#dc2626'],['Ingreso/ha',fmtUSD(d.ingHa),'#2d5a27']]" :key="l"
+                style="background:#f9fafb;border-radius:7px;padding:7px 10px">
+                <p style="font-size:10px;color:#9ca3af">{{ l }}</p>
+                <p :style="{fontSize:'14px',fontWeight:700,color:c}">{{ v }}</p>
+              </div>
             </div>
-          </div>
-          <div :style="{background:d.margenHa>=0?'#f0fdf4':'#fff1f2',border:`1px solid ${d.margenHa>=0?'#86efac':'#fca5a5'}`,borderRadius:'8px',padding:'9px 12px',marginBottom:'10px',display:'flex',justifyContent:'space-between'}">
-            <div>
-              <p style="font-size:11px;color:#6b7280">Margen/ha</p>
-              <p :style="{fontWeight:800,fontSize:'17px',color:d.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(d.margenHa) }}</p>
+            <div :style="{background:d.margenHa>=0?'#f0fdf4':'#fff1f2',border:`1px solid ${d.margenHa>=0?'#86efac':'#fca5a5'}`,borderRadius:'8px',padding:'9px 12px',marginBottom:'10px',display:'flex',justifyContent:'space-between'}">
+              <div>
+                <p style="font-size:11px;color:#6b7280">Margen/ha</p>
+                <p :style="{fontWeight:800,fontSize:'17px',color:d.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtUSD(d.margenHa) }}</p>
+              </div>
+              <div style="text-align:right">
+                <p style="font-size:11px;color:#6b7280">Total</p>
+                <p :style="{fontWeight:800,fontSize:'17px',color:d.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(d.margenTotal) }}</p>
+              </div>
             </div>
-            <div style="text-align:right">
-              <p style="font-size:11px;color:#6b7280">Total</p>
-              <p :style="{fontWeight:800,fontSize:'17px',color:d.margenHa>=0?'#3a6b35':'#dc2626'}">{{ fmtK(d.margenTotal) }}</p>
-            </div>
-          </div>
+          </template>
           <button @click="editProy=store.proyecciones.find(p=>p.cultivo===d.cultivo)"
             style="width:100%;padding:7px;border-radius:7px;border:1.5px solid #3a6b35;background:#fff;color:#3a6b35;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
             Editar presupuesto
@@ -42,7 +44,7 @@
             <button @click="toggle(d.cultivo)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;font-size:12px;font-family:inherit">
               {{ abiertos.has(d.cultivo) ? 'Ocultar insumos ▲' : 'Ver insumos ▾' }}
             </button>
-            <button @click="excelProy(d)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
+            <button v-if="verPrecios" @click="excelProy(d)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
               ⬇ Excel
             </button>
           </div>
@@ -54,8 +56,10 @@
                   <th style="text-align:left;padding:5px 6px">Insumo</th>
                   <th style="text-align:right;padding:5px 6px">Cant.</th>
                   <th style="text-align:left;padding:5px 6px">Unidad</th>
-                  <th style="text-align:right;padding:5px 6px">$/ha</th>
-                  <th style="text-align:right;padding:5px 6px">Total</th>
+                  <template v-if="verPrecios">
+                    <th style="text-align:right;padding:5px 6px">$/ha</th>
+                    <th style="text-align:right;padding:5px 6px">Total</th>
+                  </template>
                 </tr>
               </thead>
               <tbody>
@@ -65,11 +69,13 @@
                     <td style="padding:5px 6px">{{ f.insumo }}</td>
                     <td style="padding:5px 6px;text-align:right">{{ f.cantidad }}</td>
                     <td style="padding:5px 6px">{{ f.unidad }}</td>
-                    <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
-                    <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                    <template v-if="verPrecios">
+                      <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                      <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                    </template>
                   </tr>
                 </template>
-                <tr v-if="seccionesDe(d).secciones.length" style="border-top:2px solid #2d5a27;background:#fafaf9">
+                <tr v-if="seccionesDe(d).secciones.length && verPrecios" style="border-top:2px solid #2d5a27;background:#fafaf9">
                   <td style="padding:5px 6px;font-weight:800;color:#2d5a27">TOTAL</td>
                   <td/><td/>
                   <td style="padding:5px 6px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(seccionesDe(d).totalHa) }}</td>
@@ -83,14 +89,16 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:24px">
-      <ResultadoNetoCard :bruto="totalMB" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto proyectado de la campaña"/>
-    </div>
+    <template v-if="verPrecios">
+      <div style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:24px">
+        <ResultadoNetoCard :bruto="totalMB" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto proyectado de la campaña"/>
+      </div>
 
-    <div style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Comparativa margen bruto proyectado (USD/ha)</h3>
-      <SvgHBar :data="barData" :height="250"/>
-    </div>
+      <div style="background:#fff;border:1px solid #d4cfc4;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Comparativa margen bruto proyectado (USD/ha)</h3>
+        <SvgHBar :data="barData" :height="250"/>
+      </div>
+    </template>
 
     <!-- Edit proy modal -->
     <q-dialog v-if="editProy" :model-value="true" @hide="editProy=null">
@@ -110,6 +118,7 @@ import { ref, computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useCatalogoStore } from '../stores/catalogo'
+import { useGranjaStore } from '../stores/granja'
 import SvgHBar from '../components/charts/SvgHBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import ProyForm from './ProyForm.vue'
@@ -121,6 +130,8 @@ import { fmtUSD, fmtK } from '../utils/formatters'
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
 const catStore = useCatalogoStore()
+const granja   = useGranjaStore()
+const verPrecios = computed(() => granja.verPrecios('costos_proyectados'))
 const editProy = ref(null)
 
 const ctx = computed(() => ({
