@@ -139,6 +139,23 @@ export const miembroFromDb = r => ({
   granjaPropietarioId: r.granjas?.propietario_id || null,
 })
 
+// ── Plantillas de costos (Proyectados) ────────────────────────────
+export const plantillaToDb = p => ({
+  id: p.id,
+  cultivo: p.cultivo || '',
+  nombre: p.nombre || '',
+  items_costo: Array.isArray(p.itemsCosto) ? p.itemsCosto : [],
+  etapas: Array.isArray(p.etapas) ? p.etapas : [],
+})
+export const plantillaFromDb = r => ({
+  id: r.id,
+  cultivo: r.cultivo || '',
+  nombre: r.nombre || '',
+  itemsCosto: r.items_costo || [],
+  etapas: r.etapas || [],
+  createdAt: r.created_at,
+})
+
 // ── Catálogo de insumos ───────────────────────────────────────────
 export const catToDb = c => ({
   id: c.id,
