@@ -22,6 +22,7 @@ export default [
       { path: 'proyectados', component: () => import('../pages/ProyectadosPage.vue') },
       { path: 'stocks',      component: () => import('../pages/StocksPage.vue') },
       { path: 'chat',        component: () => import('../pages/ChatPage.vue') },
+      { path: 'granja',      component: () => import('../pages/GranjaPage.vue') },
     ],
   },
 ]

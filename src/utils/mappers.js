@@ -113,6 +113,32 @@ export const costoFijoFromDb = r => ({
   createdAt: r.created_at,
 })
 
+// ── Granjas (multi-usuario tipo clan) — Parte 1 ───────────────────
+export const granjaToDb = g => ({
+  id: g.id,
+  propietario_id: g.propietarioId,
+  nombre: g.nombre || '',
+})
+export const granjaFromDb = r => ({
+  id: r.id,
+  propietarioId: r.propietario_id,
+  nombre: r.nombre || '',
+  createdAt: r.created_at,
+})
+
+export const miembroFromDb = r => ({
+  id: r.id,
+  granjaId: r.granja_id,
+  userId: r.user_id || null,
+  emailInvitado: r.email_invitado || '',
+  estado: r.estado || 'pendiente',
+  invitadoEn: r.invitado_en,
+  aceptadoEn: r.aceptado_en || null,
+  // nombre de la granja cuando viene por join (granjas(nombre, propietario_id))
+  granjaNombre: r.granjas?.nombre || null,
+  granjaPropietarioId: r.granjas?.propietario_id || null,
+})
+
 // ── Catálogo de insumos ───────────────────────────────────────────
 export const catToDb = c => ({
   id: c.id,

@@ -77,6 +77,18 @@
               <div style="font-weight:700;font-size:13px;color:#1f2937">{{ auth.usuario?.nombre }}</div>
               <div style="font-size:11px;color:#9ca3af;margin-top:2px">{{ auth.usuario?.email }}</div>
             </div>
+            <!-- Mi Granja -->
+            <q-item clickable v-close-popup @click="router.push('/granja')"
+              style="color:#1f2937;font-weight:600;font-size:13px;padding:10px 16px">
+              <q-item-section avatar style="min-width:28px">
+                <q-icon name="groups" size="17px" color="green-8"/>
+              </q-item-section>
+              <q-item-section>Mi Granja</q-item-section>
+              <q-item-section side v-if="invitacionesPendientes">
+                <span style="background:#dc2626;color:#fff;border-radius:999px;font-size:10px;font-weight:700;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 5px">{{ invitacionesPendientes }}</span>
+              </q-item-section>
+            </q-item>
+            <q-separator/>
             <!-- Logout -->
             <q-item clickable v-close-popup @click="doLogout"
               style="color:#dc2626;font-weight:600;font-size:13px;padding:10px 16px">
@@ -142,11 +154,15 @@ import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMainStore } from '../stores/main'
 import { useAuthStore } from '../stores/auth'
+import { useGranjaStore } from '../stores/granja'
 
-const store  = useMainStore()
-const auth   = useAuthStore()
-const router = useRouter()
-const route  = useRoute()
+const store   = useMainStore()
+const auth    = useAuthStore()
+const granja  = useGranjaStore()
+const router  = useRouter()
+const route   = useRoute()
+
+const invitacionesPendientes = computed(() => granja.invitacionesPendientes.length)
 
 const inicial = computed(() => (auth.usuario?.nombre?.[0] || auth.usuario?.email?.[0] || '?').toUpperCase())
 

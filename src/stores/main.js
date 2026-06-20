@@ -7,6 +7,7 @@ import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacio
 import { costoFijoAnualUsd } from '../utils/calculations'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
+import { useGranjaStore } from './granja'
 
 const uid = () => crypto.randomUUID()
 
@@ -67,6 +68,7 @@ export const useMainStore = defineStore('main', () => {
       try { await loadAsignaciones() } catch (e) { console.warn('[asignaciones_campana] tabla no disponible:', e?.message) }
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
+      try { await useGranjaStore().loadGranja() } catch (e) { console.warn('[granjas] tabla no disponible:', e?.message) }
       try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
     } catch (e) {
       console.error('[loadData]', e?.message)
@@ -196,6 +198,7 @@ export const useMainStore = defineStore('main', () => {
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
     useCatalogoStore().reset()
     useLotesMaestroStore().reset()
+    useGranjaStore().reset()
   }
 
   // ── Asignaciones por campaña (lote ↔ campaña ↔ cultivo + costos) ──
