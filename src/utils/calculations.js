@@ -199,6 +199,28 @@ export function calcLote(lote) {
   return { costoHa: c, ingresoHa: i, margenHa: i - c }
 }
 
+// Igual que calcLote pero suma el alquiler del CONTRATO. Evita doble conteo:
+// con contrato, se ignoran los ítems manuales de categoría 'arrendamiento'.
+export function calcLoteConAlquiler(asignacion, ha, contrato, cultivosPrecio = {}) {
+  if (!contrato) return calcLote(asignacion)
+  const alq = alquilerPorCultivo(contrato, asignacion, ha, cultivosPrecio)
+  const costoCult = (cultivo, alquilerHa) => costoHaSinAlquiler(cultivo) + (alquilerHa || 0)
+  if (asignacion.tipoSiembra === 'doble') {
+    const ce = costoCult(asignacion.cultivoEstival, alq.estivalHa),  ie = calcIngresoHa(asignacion.cultivoEstival)
+    const ci = costoCult(asignacion.cultivoInvernal, alq.invernalHa), ii = calcIngresoHa(asignacion.cultivoInvernal)
+    return { costoHa: ce + ci, ingresoHa: ie + ii, margenHa: (ie + ii) - (ce + ci),
+      est: { costoHa: ce, ingresoHa: ie, margenHa: ie - ce }, inv: { costoHa: ci, ingresoHa: ii, margenHa: ii - ci } }
+  }
+  const c = costoCult(asignacion.cultivo, alq.simpleHa), i = calcIngresoHa(asignacion.cultivo)
+  return { costoHa: c, ingresoHa: i, margenHa: i - c }
+}
+
+// ¿El cultivo / la asignación tienen un ítem 'arrendamiento' cargado a mano?
+export const tieneArrendamientoManual = cultivo => (cultivo?.itemsCosto || []).some(it => it.categoria === 'arrendamiento')
+export const asignacionTieneArrendamientoManual = a => a?.tipoSiembra === 'doble'
+  ? (tieneArrendamientoManual(a.cultivoInvernal) || tieneArrendamientoManual(a.cultivoEstival))
+  : tieneArrendamientoManual(a?.cultivo)
+
 export const getLoteName    = l => l.nombre || l.lote || '—'
 export const getCultivoLabel = l =>
   l.tipoSiembra === 'doble'

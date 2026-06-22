@@ -48,16 +48,21 @@ import { computed } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useGranjaStore } from '../stores/granja'
+import { useCatalogoStore } from '../stores/catalogo'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import { getCultivoColor } from '../utils/constants'
-import { calcLote, getCultivoLabel, getLoteName } from '../utils/calculations'
+import { calcLoteConAlquiler, getCultivoLabel, getLoteName } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
 const granja   = useGranjaStore()
+const catStore = useCatalogoStore()
+const cultivosPrecioMap = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// calcLote con el alquiler del contrato del lote ya incluido.
+const calcLoteAlq = l => calcLoteConAlquiler(l, l.ha, store.contratoDeLote(l.loteId, store.campania), cultivosPrecioMap.value)
 // Un miembro sólo ve montos si tiene permiso de precios en algún módulo de costos.
 const verPlata = computed(() => granja.verPrecios('costos_contables') || granja.verPrecios('costos_proyectados'))
 // Asignaciones de la campaña activa, con ha y nombre inyectados desde el catastro.
@@ -67,7 +72,7 @@ const filtered = computed(() => store.asignaciones
 
 const haFisicas      = computed(() => filtered.value.reduce((s, l) => s + (parseFloat(l.ha) || 0), 0))
 const haSembradas    = computed(() => filtered.value.reduce((s, l) => s + (parseFloat(l.ha) || 0) * (l.tipoSiembra === 'doble' ? 2 : 1), 0))
-const resultadoBruto = computed(() => filtered.value.reduce((s, l) => { const c = calcLote(l); return s + c.margenHa * (parseFloat(l.ha) || 0) }, 0))
+const resultadoBruto = computed(() => filtered.value.reduce((s, l) => { const c = calcLoteAlq(l); return s + c.margenHa * (parseFloat(l.ha) || 0) }, 0))
 const nDoble  = computed(() => filtered.value.filter(l => l.tipoSiembra === 'doble').length)
 const haDoble = computed(() => filtered.value.filter(l => l.tipoSiembra === 'doble').reduce((s, l) => s + (parseFloat(l.ha) || 0), 0))
 
@@ -93,7 +98,7 @@ const donutData = computed(() => {
 })
 
 const barData = computed(() => filtered.value.map(l => {
-  const c = calcLote(l)
+  const c = calcLoteAlq(l)
   return { name: getLoteName(l), costo: Math.round(c.costoHa), ingreso: Math.round(c.ingresoHa) }
 }))
 </script>

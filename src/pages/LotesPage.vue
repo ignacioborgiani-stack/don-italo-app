@@ -87,16 +87,14 @@
             </div>
           </div>
         </div>
-        <!-- Alquiler del lote -->
-        <div v-if="verPrecios && alquilerVer" style="margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
-          <p style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;margin:0 0 4px">🏠 Alquiler</p>
-          <div style="font-size:13px;color:#92400e">
-            {{ contratoLabel(alquilerVer.contrato) }} · Total <b>{{ fmtUSD(alquilerVer.total) }}</b>
-            <template v-if="verRow.a.tipoSiembra==='doble'">
-              <span style="margin-left:4px">· ☀️ {{ verRow.a.cultivoEstival?.nombre }} {{ fmtUSD(alquilerVer.estivalHa) }}/ha · 🌾 {{ verRow.a.cultivoInvernal?.nombre }} {{ fmtUSD(alquilerVer.invernalHa) }}/ha</span>
-            </template>
-            <template v-else><span style="margin-left:4px">· {{ fmtUSD(alquilerVer.simpleHa) }}/ha</span></template>
-          </div>
+        <!-- El alquiler del contrato ya está incluido en Costo/ha y Margen de arriba -->
+        <div v-if="verPrecios && alquilerVer" style="margin-top:12px;background:#f0fdf4;border:1px solid #cde3cb;border-radius:8px;padding:8px 12px;font-size:12px;color:#374151">
+          🏠 El <b>Costo/ha</b> y el <b>Margen</b> ya incluyen el alquiler — {{ contratoLabel(alquilerVer.contrato) }} · total {{ fmtUSD(alquilerVer.total) }}
+          <template v-if="verRow.a.tipoSiembra==='doble'"> (☀️ {{ fmtUSD(alquilerVer.estivalHa) }}/ha · 🌾 {{ fmtUSD(alquilerVer.invernalHa) }}/ha)</template>
+          <template v-else> ({{ fmtUSD(alquilerVer.simpleHa) }}/ha)</template>
+        </div>
+        <div v-if="verPrecios && dobleCargaVer" style="margin-top:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 12px;font-size:12px;color:#9a3412">
+          ⚠️ Este lote tiene alquiler por <b>contrato</b> y además ítems <b>"Arrendamiento"</b> cargados a mano. Se usa el del contrato; los manuales se ignoran para no duplicar.
         </div>
 
         <!-- Indicadores por cultivo -->
@@ -209,7 +207,7 @@ import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
-import { calcLote, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerPorCultivo, indicadoresCultivo } from '../utils/calculations'
+import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -236,7 +234,9 @@ const filas = computed(() => store.asignaciones
   .filter(a => granja.tieneAccesoLote(a.loteId))   // miembro: sólo lotes permitidos
   .map(a => {
     const lote = lmStore.byId(a.loteId)
-    return { a, nombre: lote?.nombre || '—', ha: parseFloat(lote?.ha) || 0, calc: calcLote(a) }
+    const ha = parseFloat(lote?.ha) || 0
+    const contrato = store.contratoDeLote(a.loteId, store.campania)
+    return { a, nombre: lote?.nombre || '—', ha, calc: calcLoteConAlquiler(a, ha, contrato, ctx.value.cultivosPrecio) }
   })
   .sort((x, y) => x.nombre.localeCompare(y.nombre)))
 
@@ -288,6 +288,8 @@ const contratoLabel = c => c
       ? `${fmtNum(c.cantidad)} qq/ha fijos (ref. ${c.cultivoReferencia})`
       : `${fmtNum(c.cantidad)}% de la cosecha (ref. ${c.cultivoReferencia})`)
   : ''
+// ¿Coexisten contrato + ítem 'arrendamiento' manual? (para avisar del doble conteo)
+const dobleCargaVer = computed(() => !!(verRow.value && alquilerVer.value && asignacionTieneArrendamientoManual(verRow.value.a)))
 
 // ── Indicadores por cultivo (rinde de indiferencia + margen contrib./tn) ──
 const indicadoresVer = computed(() => {

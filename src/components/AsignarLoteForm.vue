@@ -67,6 +67,9 @@
         <p style="font-size:11px;color:#9ca3af;margin:0 0 10px">Se valúa con el precio del cultivo de referencia (no es un monto fijo en USD).</p>
 
         <template v-if="alq.activo">
+          <div v-if="tieneArrManual" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#9a3412">
+            ⚠️ Tenés un ítem <b>"Arrendamiento"</b> cargado a mano en los costos. Con el contrato activo, ese ítem manual se <b>ignora</b> (no se suma) para no duplicar el alquiler.
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
               <label class="di-lbl">Tipo de contrato</label>
@@ -146,7 +149,7 @@ import LoteMaestroForm from './LoteMaestroForm.vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useMainStore } from '../stores/main'
 import { useCatalogoStore } from '../stores/catalogo'
-import { calcularCostoItemHa, alquilerPorCultivo } from '../utils/calculations'
+import { calcularCostoItemHa, alquilerPorCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
 import { fmtNum, fmtUSD } from '../utils/formatters'
 
 const props = defineProps({ campania: String, initial: Object })
@@ -202,6 +205,7 @@ const cultivoRefOpciones = computed(() => {
 })
 const asigActual = computed(() => ({ tipoSiembra: f.tipoSiembra, cultivo: f.cultivo, cultivoEstival: f.cultivoEstival, cultivoInvernal: f.cultivoInvernal }))
 const alqPreview = computed(() => alquilerPorCultivo(alq, asigActual.value, loteSel.value?.ha, cultivosPrecio.value))
+const tieneArrManual = computed(() => asignacionTieneArrendamientoManual(asigActual.value))
 
 function finalizar(c) {
   if (!c) return null
