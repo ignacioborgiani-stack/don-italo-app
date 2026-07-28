@@ -25,25 +25,18 @@
       </template>
 
       <!-- ── SEGURO (especial: monto fijo o % del valor asegurado) ── -->
+      <!-- Fila 1: sólo el selector de modalidad (+ campo USD/ha si es monto fijo).
+           Los campos de % prima y rinde asegurado van en la Fila 2 (abajo). -->
       <template v-else-if="item.categoria==='seguro'">
-        <select :value="param.modalidad || 'monto_fijo'" @change="onParam('modalidad',$event.target.value)" class="di-inp" style="width:160px;flex-shrink:0;padding:5px 6px;font-size:11px">
+        <select :value="param.modalidad || 'monto_fijo'" @change="onParam('modalidad',$event.target.value)" class="di-inp" style="width:170px;flex-shrink:0;padding:5px 6px;font-size:11px">
           <option value="monto_fijo">Monto fijo (USD/ha)</option>
           <option value="porcentaje">% del valor asegurado</option>
         </select>
-        <template v-if="(param.modalidad||'monto_fijo')==='porcentaje'">
-          <div style="width:80px;flex-shrink:0">
-            <input type="number" step="any" :value="param.porcentaje" @input="onParam('porcentaje',$event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0"/>
-            <span style="font-size:10px;color:#9ca3af">% prima</span>
-          </div>
-          <div style="width:96px;flex-shrink:0">
-            <input type="number" step="any" :value="param.rindeAsegurado" @input="onParam('rindeAsegurado',$event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0"/>
-            <span style="font-size:10px;color:#9ca3af">rinde aseg. (tn/ha)</span>
-          </div>
-        </template>
-        <div v-else style="flex:1;min-width:90px">
+        <div v-if="(param.modalidad||'monto_fijo')!=='porcentaje'" style="flex:1;min-width:90px">
           <input type="number" step="any" :value="param.valor" @input="onParam('valor',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px" placeholder="0"/>
           <span style="font-size:10px;color:#9ca3af">USD/ha</span>
         </div>
+        <div v-else style="flex:1;min-width:20px"/>
       </template>
 
       <!-- ── LABORES (cosecha / flete / labor) ── -->
@@ -99,6 +92,19 @@
       </div>
 
       <button @click="$emit('remove')" style="background:#fff1f2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;color:#dc2626;font-size:14px;width:26px;height:26px;flex-shrink:0">×</button>
+    </div>
+
+    <!-- Fila 2: Seguro % del valor asegurado → % prima + rinde asegurado, con espacio -->
+    <div v-if="item.categoria==='seguro' && (param.modalidad||'monto_fijo')==='porcentaje'"
+      style="display:flex;gap:12px;margin-top:8px;padding-left:32px;flex-wrap:wrap">
+      <div style="flex:0 0 130px">
+        <input type="number" step="any" :value="param.porcentaje" @input="onParam('porcentaje',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="0"/>
+        <span style="font-size:10px;color:#9ca3af">% prima</span>
+      </div>
+      <div style="flex:0 0 150px">
+        <input type="number" step="any" :value="param.rindeAsegurado" @input="onParam('rindeAsegurado',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="0"/>
+        <span style="font-size:10px;color:#9ca3af">rinde aseg. (tn/ha)</span>
+      </div>
     </div>
   </div>
 </template>
