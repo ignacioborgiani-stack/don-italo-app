@@ -4,17 +4,18 @@
       El alquiler es información del campo: abarca un rango de campañas y se valúa con el precio del cultivo de referencia (no es un monto fijo en USD).
     </p>
 
-    <datalist id="campanas-list">
-      <option v-for="k in campanas" :key="k" :value="k"/>
-    </datalist>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
         <label class="di-lbl">Campaña inicio</label>
-        <input v-model="c.campanaInicio" list="campanas-list" class="di-inp" placeholder="2024/25"/>
+        <select v-model="c.campanaInicio" class="di-inp">
+          <option v-for="k in campanas" :key="k" :value="k">{{ k }}</option>
+        </select>
       </div>
       <div>
         <label class="di-lbl">Campaña fin</label>
-        <input v-model="c.campanaFin" list="campanas-list" class="di-inp" placeholder="2026/27"/>
+        <select v-model="c.campanaFin" class="di-inp">
+          <option v-for="k in campanas" :key="k" :value="k">{{ k }}</option>
+        </select>
       </div>
       <div>
         <label class="di-lbl">Tipo de contrato</label>
@@ -94,8 +95,16 @@ const emit  = defineEmits(['save', 'cancel', 'delete'])
 const main = useMainStore()
 const catStore = useCatalogoStore()
 
-const campYear = n => { const m = String(n || '').match(/\d+/); return m ? parseInt(m[0], 10) : 0 }
-const campanas = computed(() => [...main.campanas].sort((a, b) => campYear(a) - campYear(b)))
+// Año por los primeros 4 caracteres del string (ej: "2024/25" → 2024).
+const campYear = n => parseInt(String(n || '').slice(0, 4), 10) || 0
+// Campañas del store + los valores actuales del contrato (por si abarca alguna
+// campaña que todavía no está en la lista), ordenadas por año.
+const campanas = computed(() => {
+  const set = new Set(main.campanas)
+  if (c.campanaInicio) set.add(c.campanaInicio)
+  if (c.campanaFin) set.add(c.campanaFin)
+  return [...set].sort((a, b) => campYear(a) - campYear(b))
+})
 
 // Asignación del lote en la campaña activa (para saber si es doble y sus cultivos).
 const asigActiva = computed(() => main.asignaciones.find(a => a.loteId === props.lote.id && a.campaña === main.campania) || null)

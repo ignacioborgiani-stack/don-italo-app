@@ -26,9 +26,7 @@
           <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:600">{{ fmtNum(l.ha) }} ha</span>
         </div>
         <div style="padding:12px 16px;flex:1;display:flex;flex-direction:column;gap:6px">
-          <div v-if="contratoChip(l.id)" style="align-self:flex-start;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600">
-            🏠 {{ contratoChip(l.id) }}
-          </div>
+          <div v-if="contratoChips[l.id]" :style="contratoChips[l.id].style">{{ contratoChips[l.id].text }}</div>
           <div v-if="l.ubicacion" style="font-size:13px;color:#374151">📍 {{ l.ubicacion }}</div>
           <div v-if="l.notas" style="font-size:12px;color:#6b7280;font-style:italic">{{ l.notas }}</div>
           <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
@@ -108,13 +106,30 @@ const lotes = computed(() => store.items)
 const modal  = ref(null)
 const contratoModal = ref(null)
 
-// Chip del contrato de alquiler del lote (o null si no tiene).
-function contratoChip(loteId) {
+// Año de la campaña por los primeros 4 caracteres del string (ej: "2024/25" → 2024).
+const campYear = n => parseInt(String(n || '').slice(0, 4), 10) || 0
+const chipStyle = (bg, border, color) => `align-self:flex-start;background:${bg};border:1px solid ${border};color:${color};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600`
+
+// Chip del contrato del lote SEGÚN la campaña activa:
+//   • activa < inicio → null (todavía no arrancó)
+//   • inicio ≤ activa < fin → ámbar "… · vence {fin}"
+//   • activa == fin → naranja "⚠️ vence esta campaña"
+//   • activa > fin → rojo "Contrato vencido"
+function chipDeLote(loteId) {
   const ct = mainStore.contratoDeLote(loteId)
   if (!ct) return null
-  const q = ct.tipoContrato === 'quintales_fijos' ? `${fmtNum(ct.cantidad)} qq/ha` : `${fmtNum(ct.cantidad)}% cosecha`
-  return `${q} · vence ${ct.campanaFin || '—'}`
+  const yA = campYear(mainStore.campania), yi = campYear(ct.campanaInicio), yf = campYear(ct.campanaFin)
+  if (yi && yA < yi) return null
+  const base = ct.tipoContrato === 'quintales_fijos' ? `${fmtNum(ct.cantidad)} qq/ha` : `${fmtNum(ct.cantidad)}% cosecha`
+  if (yf && yA > yf)   return { text: `🏠 ${base} · Contrato vencido`,      style: chipStyle('#fef2f2', '#fecaca', '#dc2626') }
+  if (yf && yA === yf) return { text: `🏠 ${base} · ⚠️ vence esta campaña`, style: chipStyle('#fff7ed', '#fdba74', '#9a3412') }
+  return { text: `🏠 ${base} · vence ${ct.campanaFin || '—'}`,             style: chipStyle('#fffbeb', '#fde68a', '#92400e') }
 }
+const contratoChips = computed(() => {
+  const out = {}
+  for (const l of lotes.value) { const chip = chipDeLote(l.id); if (chip) out[l.id] = chip }
+  return out
+})
 function openContrato(l) { contratoModal.value = { lote: l, contrato: mainStore.contratoDeLote(l.id) } }
 const hoverId = ref(null)
 const eliminarOpen   = ref(false)
