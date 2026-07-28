@@ -106,10 +106,15 @@ const insumoSel = computed(() => props.catalogo.find(i => i.id === props.item.in
 const laborSel  = computed(() => props.labores.find(l => l.id === props.item.laborId) || null)
 const unidadLabel = computed(() => unidadDosisInsumo(insumoSel.value))
 
-// Precio manual por ítem (sugerido desde el catálogo, editable, se congela).
+// Precio manual efectivo por unidad de dosis (USD). Se muestra el guardado en el
+// ítem; NO cae al catálogo (para no pisar precios históricos al editar).
 const precioMostrado = computed(() =>
-  (props.item.precioUnit != null && props.item.precioUnit !== '') ? props.item.precioUnit : (insumoSel.value?.precio ?? ''))
-const precioLabel = computed(() => insumoSel.value ? `${insumoSel.value.moneda || 'USD'}/${insumoSel.value.unidadPrecio || 'u'}` : 'precio')
+  (props.item.precioUnit != null && props.item.precioUnit !== '') ? props.item.precioUnit : '')
+const precioLabel = computed(() => {
+  if (!insumoSel.value) return 'precio'
+  const unidad = unidadDosisInsumo(insumoSel.value).replace(/\/ha.*$/, '').replace(' (pasadas)', '') || 'u'
+  return `USD/${unidad}`
+})
 
 const sinVincular = computed(() =>
   !props.item.insumoId && !props.item.laborId && !props.item.modoEspecial &&
@@ -144,8 +149,13 @@ function onProducto(val) {
   if (val === '__nuevo__') { emit('crear-insumo', props.item.categoria); return }
   const insumo = props.catalogo.find(i => i.id === val)
   const patch = { insumoId: val || null, nombreManual: insumo ? insumo.nombre : props.item.nombreManual, unidadDosis: unidadDosisInsumo(insumo) }
-  // Contables: precargar el precio del catálogo como sugerencia editable.
-  if (props.precioEditable) patch.precioUnit = insumo ? insumo.precio : ''
+  // Contables + ítem NUEVO: sugerir el precio efectivo (USD/unidad de dosis) del
+  // catálogo actual, calculado con dosis=1. Editable; se congela al guardar.
+  if (props.precioEditable) {
+    patch.precioUnit = insumo
+      ? calcularCostoItemHa({ insumoId: insumo.id, dosis: 1 }, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores)
+      : ''
+  }
   emitChange(patch)
 }
 function onPrecio(val) { emitChange({ precioUnit: val }) }

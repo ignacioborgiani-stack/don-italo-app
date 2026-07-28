@@ -163,14 +163,17 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
 
   // ── Ítems vinculados al catálogo ──
   if (item.insumoId) {
+    const dosis = parseFloat(item.dosis) || 0
+    // Precio MANUAL efectivo (USD por unidad de dosis): costo = precioUnit × dosis,
+    // sin más conversión de unidad/moneda. Permite congelar precios históricos y
+    // sobrevive aunque el insumo se borre del catálogo.
+    if (item.precioUnit != null && item.precioUnit !== '') {
+      return (parseFloat(item.precioUnit) || 0) * dosis
+    }
+    // Sin precio manual: precio actual del catálogo (con su conversión de unidad/moneda).
     const insumo = catalogo.find(i => i.id === item.insumoId)
     if (!insumo) return parseFloat(item.costoHaUsd) || 0   // referencia rota: usa fallback
-    // Precio unitario: si el ítem trae un precio MANUAL (precioUnit), se usa ese
-    // (permite precios históricos, se congela); si no, el precio actual del catálogo.
-    const precio = (item.precioUnit != null && item.precioUnit !== '')
-      ? (parseFloat(item.precioUnit) || 0)
-      : (parseFloat(insumo.precio) || 0)
-    const dosis = parseFloat(item.dosis) || 0
+    const precio = parseFloat(insumo.precio) || 0
     let costo = 0
     switch (insumo.unidadPrecio) {
       case 'tn':     costo = (precio / 1000) * dosis; break                 // dosis kg/ha

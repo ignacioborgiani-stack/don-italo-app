@@ -161,7 +161,18 @@ const ordenarCat = ref(props.ordenarCat)
 // ── Estado local: etapas con sus ítems (estructura anidada para el drag&drop) ──
 // Normaliza datos heredados: ids faltantes y ítems sin etapa → etapa "General".
 function buildGrupos() {
-  const items = (props.items || []).map(it => (it.id ? { ...it } : { ...it, id: uid() }))
+  const items = (props.items || []).map(it => {
+    const base = it.id ? { ...it } : { ...it, id: uid() }
+    // Contables: al ABRIR un ítem existente vinculado a un insumo, precargar el
+    // precio histórico guardado (costoHaCalculado / dosis), NO el del catálogo actual.
+    // Así, guardar sin tocar nada preserva el costo (calcularCostoItemHa = precioUnit × dosis).
+    if (props.precioEditable && base.insumoId) {
+      const dosis = parseFloat(base.dosis) || 0
+      const chc = parseFloat(base.costoHaCalculado)
+      if (dosis > 0 && Number.isFinite(chc)) base.precioUnit = chc / dosis
+    }
+    return base
+  })
   let etapas = (props.etapas || []).map(e => (e.id ? { ...e } : { ...e, id: uid() }))
   const etapaIds = new Set(etapas.map(e => e.id))
   const sinEtapa = items.some(it => !it.etapa || !etapaIds.has(it.etapa))
