@@ -16,6 +16,7 @@ export function unidadItem(it, ctx) {
   }
   if (it.modoEspecial) {
     const p = it.parametroEspecial || {}
+    if (it.categoria === 'seguro') return p.modalidad === 'porcentaje' ? '% + rinde aseg.' : 'USD/ha'
     return p.modalidad === 'usd_ha' ? 'USD/ha' : p.modalidad === 'qq_soja' ? 'qq soja/ha' : '% grano'
   }
   return ''
@@ -29,6 +30,7 @@ export function cantidadItem(it, ctx) {
   }
   if (it.modoEspecial) {
     const p = it.parametroEspecial || {}
+    if (it.categoria === 'seguro') return Number((p.modalidad === 'porcentaje' ? p.porcentaje : p.valor) ?? 0)
     return Number((p.modalidad === 'porc_grano' ? p.porcentaje : p.valor) ?? 0)
   }
   if (it.insumoId || it.laborId) return Number(it.dosis ?? 0)

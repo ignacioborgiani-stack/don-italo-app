@@ -16,14 +16,14 @@ export const CATEGORIA_A_FAMILIAS = {
   otros:         null,   // null = todas las familias
 }
 // Categoría del ítem → categorías del catálogo de LABORES que se ofrecen.
+// (seguro salió de acá: ahora es ítem especial con modalidad monto fijo / % asegurado.)
 export const LABOR_CATEGORIA_MAP = {
   cosecha: ['Cosecha'],
   flete:   ['Flete'],
   labor:   ['Aplicación', 'Labranza'],
-  seguro:  ['Seguro'],
 }
 // Categorías que se resuelven como ítem especial manual (no catálogo).
-export const CATEGORIAS_ESPECIALES = ['arrendamiento']
+export const CATEGORIAS_ESPECIALES = ['arrendamiento', 'seguro']
 
 // ── Orden y agrupación de ítems de costo ──────────────────────────
 
@@ -157,6 +157,13 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
         return tiene('porcentaje') ? (parseFloat(p.porcentaje) || 0) / 100 * rendTn * precioVenta : legacy
       }
       return tiene('valor') ? (parseFloat(p.valor) || 0) : legacy   // usd_ha (default)
+    }
+    if (item.categoria === 'seguro') {
+      // % de la prima × precio de mercado del cultivo (USD/tn) × rinde asegurado (tn/ha)
+      if (p.modalidad === 'porcentaje') {
+        return (parseFloat(p.porcentaje) || 0) / 100 * precioVenta * (parseFloat(p.rindeAsegurado) || 0)
+      }
+      return tiene('valor') ? (parseFloat(p.valor) || 0) : legacy   // monto_fijo (USD/ha)
     }
     return legacy
   }

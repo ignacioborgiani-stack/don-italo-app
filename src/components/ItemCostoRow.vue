@@ -24,7 +24,29 @@
         </div>
       </template>
 
-      <!-- ── LABORES (cosecha / flete / labor / seguro) ── -->
+      <!-- ── SEGURO (especial: monto fijo o % del valor asegurado) ── -->
+      <template v-else-if="item.categoria==='seguro'">
+        <select :value="param.modalidad || 'monto_fijo'" @change="onParam('modalidad',$event.target.value)" class="di-inp" style="width:160px;flex-shrink:0;padding:5px 6px;font-size:11px">
+          <option value="monto_fijo">Monto fijo (USD/ha)</option>
+          <option value="porcentaje">% del valor asegurado</option>
+        </select>
+        <template v-if="(param.modalidad||'monto_fijo')==='porcentaje'">
+          <div style="width:80px;flex-shrink:0">
+            <input type="number" step="any" :value="param.porcentaje" @input="onParam('porcentaje',$event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0"/>
+            <span style="font-size:10px;color:#9ca3af">% prima</span>
+          </div>
+          <div style="width:96px;flex-shrink:0">
+            <input type="number" step="any" :value="param.rindeAsegurado" @input="onParam('rindeAsegurado',$event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0"/>
+            <span style="font-size:10px;color:#9ca3af">rinde aseg. (tn/ha)</span>
+          </div>
+        </template>
+        <div v-else style="flex:1;min-width:90px">
+          <input type="number" step="any" :value="param.valor" @input="onParam('valor',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px" placeholder="0"/>
+          <span style="font-size:10px;color:#9ca3af">USD/ha</span>
+        </div>
+      </template>
+
+      <!-- ── LABORES (cosecha / flete / labor) ── -->
       <template v-else-if="esLabor">
         <div style="flex:1;min-width:140px">
           <select :value="item.laborId || ''" @change="onLabor($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px">
@@ -143,6 +165,7 @@ function emitChange(patch) { emit('update:item', recompute({ ...props.item, ...p
 function onCategoria(cat) {
   const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', precioUnit: '', modoEspecial: false, parametroEspecial: null }
   if (cat === 'arrendamiento') { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'usd_ha', valor: 0, porcentaje: 0 } }
+  else if (cat === 'seguro')   { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'monto_fijo', valor: 0, porcentaje: 0, rindeAsegurado: 0 } }
   emitChange(patch)
 }
 function onProducto(val) {
