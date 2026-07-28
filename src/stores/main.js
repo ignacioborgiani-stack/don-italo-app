@@ -215,16 +215,22 @@ export const useMainStore = defineStore('main', () => {
     return c
   }
   async function upsertContratoAlquiler(loteId, datos) {
-    const userId = getOwnerId()
     const existing = contratoDeLote(loteId)
-    const row = { ...contratoAlquilerToDb({ ...datos, id: existing?.id || uid(), loteId }), user_id: userId }
-    const { data, error } = await supabase.from('contratos_alquiler')
-      .upsert(row, { onConflict: 'user_id,lote_id' }).select().single()
+    if (existing) {
+      // EDITAR: update por id
+      const upd = contratoAlquilerToDb({ ...datos, id: existing.id, loteId })
+      const { data, error } = await supabase.from('contratos_alquiler').update(upd).eq('id', existing.id).select().single()
+      if (error) throw error
+      const saved = contratoAlquilerFromDb(data)
+      contratosAlquiler.value = contratosAlquiler.value.map(c => c.id === saved.id ? saved : c)
+      return saved
+    }
+    // CREAR: insert nuevo
+    const row = { ...contratoAlquilerToDb({ ...datos, id: uid(), loteId }), user_id: getOwnerId() }
+    const { data, error } = await supabase.from('contratos_alquiler').insert(row).select().single()
     if (error) throw error
     const saved = contratoAlquilerFromDb(data)
-    contratosAlquiler.value = existing
-      ? contratosAlquiler.value.map(c => c.id === saved.id ? saved : c)
-      : [...contratosAlquiler.value, saved]
+    contratosAlquiler.value = [...contratosAlquiler.value, saved]
     return saved
   }
   async function delContratoAlquiler(id) {
