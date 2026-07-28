@@ -165,7 +165,11 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
   if (item.insumoId) {
     const insumo = catalogo.find(i => i.id === item.insumoId)
     if (!insumo) return parseFloat(item.costoHaUsd) || 0   // referencia rota: usa fallback
-    const precio = parseFloat(insumo.precio) || 0
+    // Precio unitario: si el ítem trae un precio MANUAL (precioUnit), se usa ese
+    // (permite precios históricos, se congela); si no, el precio actual del catálogo.
+    const precio = (item.precioUnit != null && item.precioUnit !== '')
+      ? (parseFloat(item.precioUnit) || 0)
+      : (parseFloat(insumo.precio) || 0)
     const dosis = parseFloat(item.dosis) || 0
     let costo = 0
     switch (insumo.unidadPrecio) {

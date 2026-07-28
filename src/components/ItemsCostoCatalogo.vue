@@ -56,6 +56,7 @@
                 :tipo-cambio="tipoCambio"
                 :rendimiento-qq="rendimientoQq"
                 :precio-venta-tn="precioVentaTn"
+                :precio-editable="precioEditable"
                 @update:item="upd(it.id, $event)"
                 @remove="del(it.id)"
                 @crear-insumo="onCrearInsumo(it.id, $event)"
@@ -137,6 +138,7 @@ const props = defineProps({
   ordenarCat:    { type: Boolean, default: true },
   rendimientoQq: { type: [Number, String], default: 0 },
   precioVentaTn: { type: [Number, String], default: 0 },
+  precioEditable: { type: Boolean, default: false },   // Contables: permite precio manual por ítem
 })
 const emit = defineEmits(['update'])
 

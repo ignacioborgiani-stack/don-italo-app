@@ -63,6 +63,11 @@
           <input type="number" step="any" :value="item.dosis" @input="onDosis($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0" :disabled="!item.insumoId"/>
           <span style="font-size:10px;color:#9ca3af">{{ unidadLabel || 'dosis' }}</span>
         </div>
+        <!-- Precio manual (Contables): sugerido del catálogo, editable, se congela -->
+        <div v-if="precioEditable && item.insumoId" style="width:88px;flex-shrink:0">
+          <input type="number" step="any" :value="precioMostrado" @input="onPrecio($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0" title="Precio del insumo (editable para campañas históricas)"/>
+          <span style="font-size:10px;color:#9ca3af">{{ precioLabel }}</span>
+        </div>
       </template>
 
       <!-- Costo calculado -->
@@ -90,6 +95,7 @@ const props = defineProps({
   tipoCambio:     { type: Number, default: 1000 },
   rendimientoQq:  { type: [Number, String], default: 0 },
   precioVentaTn:  { type: [Number, String], default: 0 },
+  precioEditable: { type: Boolean, default: false },   // Contables: precio manual por ítem
 })
 const emit = defineEmits(['update:item', 'remove', 'crear-insumo', 'crear-labor'])
 
@@ -99,6 +105,11 @@ const param = computed(() => props.item.parametroEspecial || {})
 const insumoSel = computed(() => props.catalogo.find(i => i.id === props.item.insumoId) || null)
 const laborSel  = computed(() => props.labores.find(l => l.id === props.item.laborId) || null)
 const unidadLabel = computed(() => unidadDosisInsumo(insumoSel.value))
+
+// Precio manual por ítem (sugerido desde el catálogo, editable, se congela).
+const precioMostrado = computed(() =>
+  (props.item.precioUnit != null && props.item.precioUnit !== '') ? props.item.precioUnit : (insumoSel.value?.precio ?? ''))
+const precioLabel = computed(() => insumoSel.value ? `${insumoSel.value.moneda || 'USD'}/${insumoSel.value.unidadPrecio || 'u'}` : 'precio')
 
 const sinVincular = computed(() =>
   !props.item.insumoId && !props.item.laborId && !props.item.modoEspecial &&
@@ -125,15 +136,19 @@ function recompute(it) {
 function emitChange(patch) { emit('update:item', recompute({ ...props.item, ...patch })) }
 
 function onCategoria(cat) {
-  const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', modoEspecial: false, parametroEspecial: null }
+  const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', precioUnit: '', modoEspecial: false, parametroEspecial: null }
   if (cat === 'arrendamiento') { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'usd_ha', valor: 0, porcentaje: 0 } }
   emitChange(patch)
 }
 function onProducto(val) {
   if (val === '__nuevo__') { emit('crear-insumo', props.item.categoria); return }
   const insumo = props.catalogo.find(i => i.id === val)
-  emitChange({ insumoId: val || null, nombreManual: insumo ? insumo.nombre : props.item.nombreManual, unidadDosis: unidadDosisInsumo(insumo) })
+  const patch = { insumoId: val || null, nombreManual: insumo ? insumo.nombre : props.item.nombreManual, unidadDosis: unidadDosisInsumo(insumo) }
+  // Contables: precargar el precio del catálogo como sugerencia editable.
+  if (props.precioEditable) patch.precioUnit = insumo ? insumo.precio : ''
+  emitChange(patch)
 }
+function onPrecio(val) { emitChange({ precioUnit: val }) }
 function onLabor(val) {
   if (val === '__nuevo__') { emit('crear-labor', props.item.categoria); return }
   const labor = props.labores.find(l => l.id === val)

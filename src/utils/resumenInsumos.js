@@ -35,12 +35,16 @@ export function cantidadItem(it, ctx) {
   return it.dosis != null && it.dosis !== '' ? Number(it.dosis) : ''
 }
 
-// Filas (formato UI) de un cultivoObj con sus costos
-export function filasCultivo(cultivoObj, ha, ctx, cultivoLabel = '') {
+// Filas (formato UI) de un cultivoObj con sus costos.
+// `congelado`: Costos Contables → usa el precio guardado (costoHaCalculado del
+// JSONB), no relee el catálogo. Proyectados (default) → recalcula en vivo.
+export function filasCultivo(cultivoObj, ha, ctx, cultivoLabel = '', { congelado = false } = {}) {
   if (!cultivoObj) return []
   const rend = cultivoObj.rendimientoQq, precio = cultivoObj.precioVentaTn
   return (cultivoObj.itemsCosto || []).map(it => {
-    const costoHa = calcularCostoItemHa(it, ctx.catalogo, ctx.cultivosPrecio, ctx.tipoCambio, rend, precio, ctx.labores)
+    const costoHa = congelado
+      ? (parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0)
+      : calcularCostoItemHa(it, ctx.catalogo, ctx.cultivosPrecio, ctx.tipoCambio, rend, precio, ctx.labores)
     return {
       cultivo:    cultivoLabel || cultivoObj.nombre || '',
       insumo:     nombreItem(it, ctx),
@@ -53,16 +57,16 @@ export function filasCultivo(cultivoObj, ha, ctx, cultivoLabel = '') {
   })
 }
 
-// Filas de una asignación (simple o doble cultivo)
-export function filasAsignacion(asig, ha, ctx) {
+// Filas de una asignación (simple o doble cultivo). Propaga `opts` (ej: {congelado:true}).
+export function filasAsignacion(asig, ha, ctx, opts = {}) {
   if (!asig) return []
   if (asig.tipoSiembra === 'doble') {
     return [
-      ...filasCultivo(asig.cultivoInvernal, ha, ctx, asig.cultivoInvernal?.nombre),
-      ...filasCultivo(asig.cultivoEstival,  ha, ctx, asig.cultivoEstival?.nombre),
+      ...filasCultivo(asig.cultivoInvernal, ha, ctx, asig.cultivoInvernal?.nombre, opts),
+      ...filasCultivo(asig.cultivoEstival,  ha, ctx, asig.cultivoEstival?.nombre, opts),
     ]
   }
-  return filasCultivo(asig.cultivo, ha, ctx, asig.cultivo?.nombre)
+  return filasCultivo(asig.cultivo, ha, ctx, asig.cultivo?.nombre, opts)
 }
 
 // ── Exportación a Excel ───────────────────────────────────────────

@@ -273,7 +273,7 @@ const pieData = computed(() => {
 
 // Insumos del lote en el modal Ver: agrupados por insumo y por categoría
 const resumenVer = computed(() => verRow.value
-  ? agruparEnSecciones(filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value), verRow.value.ha)
+  ? agruparEnSecciones(filasAsignacion(verRow.value.a, verRow.value.ha, ctx.value, { congelado: true }), verRow.value.ha)
   : { secciones: [], total: 0, totalHa: 0 })
 
 // ── Alquiler del lote (contrato) ──────────────────────────────────
@@ -310,11 +310,11 @@ const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).to
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
 function excelLote(row) {
-  const filasResumen = filas.value.flatMap(r => filasAsignacion(r.a, r.ha, ctx.value).map(f => ({ ...f, lote: r.nombre, ha: r.ha })))
+  const filasResumen = filas.value.flatMap(r => filasAsignacion(r.a, r.ha, ctx.value, { congelado: true }).map(f => ({ ...f, lote: r.nombre, ha: r.ha })))
   exportarExcel({
     archivo: `costos-contables-${row.nombre}-${store.campania.replace('/','-')}.xlsx`,
     hojaDetalle: `Detalle ${row.nombre}`,
-    filasDetalle: filasAsignacion(row.a, row.ha, ctx.value),
+    filasDetalle: filasAsignacion(row.a, row.ha, ctx.value, { congelado: true }),
     haDetalle: row.ha,
     filasResumen,
     campania: store.campania,
