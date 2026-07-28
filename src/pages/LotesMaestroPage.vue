@@ -26,6 +26,9 @@
           <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:600">{{ fmtNum(l.ha) }} ha</span>
         </div>
         <div style="padding:12px 16px;flex:1;display:flex;flex-direction:column;gap:6px">
+          <div v-if="contratoChip(l.id)" style="align-self:flex-start;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600">
+            🏠 {{ contratoChip(l.id) }}
+          </div>
           <div v-if="l.ubicacion" style="font-size:13px;color:#374151">📍 {{ l.ubicacion }}</div>
           <div v-if="l.notas" style="font-size:12px;color:#6b7280;font-style:italic">{{ l.notas }}</div>
           <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
@@ -37,6 +40,7 @@
         </div>
         <div style="padding:0 16px 12px;display:flex;gap:6px">
           <button @click="openModal('edit',l)" style="flex:1;padding:6px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;cursor:pointer;font-size:12px;color:#166534;font-weight:600">Editar</button>
+          <button @click="openContrato(l)" style="flex:1;padding:6px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-size:12px;color:#92400e;font-weight:600">🏠 Alquiler</button>
           <button @click="pedirEliminar(l)" style="flex:1;padding:6px;background:#fff1f2;border:1px solid #fecaca;border-radius:6px;cursor:pointer;font-size:12px;color:#dc2626;font-weight:600">Eliminar</button>
         </div>
       </div>
@@ -50,6 +54,18 @@
           <q-btn flat round dense icon="close" @click="modal=null"/>
         </div>
         <LoteMaestroForm :initial="modal.lote" @save="onSave" @cancel="modal=null"/>
+      </q-card>
+    </q-dialog>
+
+    <!-- Contrato de alquiler -->
+    <q-dialog v-if="contratoModal" :model-value="true" @hide="contratoModal=null">
+      <q-card style="width:560px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
+        <div class="row items-center justify-between q-mb-md">
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">🏠 Contrato de alquiler — {{ contratoModal.lote.nombre }}</h2>
+          <q-btn flat round dense icon="close" @click="contratoModal=null"/>
+        </div>
+        <ContratoAlquilerForm :lote="contratoModal.lote" :initial="contratoModal.contrato"
+          @save="contratoModal=null" @delete="contratoModal=null" @cancel="contratoModal=null"/>
       </q-card>
     </q-dialog>
 
@@ -80,6 +96,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { supabase } from '../lib/supabase'
 import LoteMaestroForm from '../components/LoteMaestroForm.vue'
+import ContratoAlquilerForm from '../components/ContratoAlquilerForm.vue'
 import LotesMapa from '../components/LotesMapa.vue'
 import { useMainStore } from '../stores/main'
 import { fmtNum } from '../utils/formatters'
@@ -89,6 +106,16 @@ const mainStore = useMainStore()
 const lotes = computed(() => store.items)
 
 const modal  = ref(null)
+const contratoModal = ref(null)
+
+// Chip del contrato de alquiler del lote (o null si no tiene).
+function contratoChip(loteId) {
+  const ct = mainStore.contratoDeLote(loteId)
+  if (!ct) return null
+  const q = ct.tipoContrato === 'quintales_fijos' ? `${fmtNum(ct.cantidad)} qq/ha` : `${fmtNum(ct.cantidad)}% cosecha`
+  return `${q} · vence ${ct.campanaFin || '—'}`
+}
+function openContrato(l) { contratoModal.value = { lote: l, contrato: mainStore.contratoDeLote(l.id) } }
 const hoverId = ref(null)
 const eliminarOpen   = ref(false)
 const eliminarTarget = ref(null)

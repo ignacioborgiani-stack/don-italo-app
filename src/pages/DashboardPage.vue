@@ -62,7 +62,7 @@ const granja   = useGranjaStore()
 const catStore = useCatalogoStore()
 const cultivosPrecioMap = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 // calcLote con el alquiler del contrato del lote ya incluido.
-const calcLoteAlq = l => calcLoteConAlquiler(l, l.ha, store.contratoDeLote(l.loteId, store.campania), cultivosPrecioMap.value)
+const calcLoteAlq = l => calcLoteConAlquiler(l, l.ha, store.contratoVigente(l.loteId, store.campania), cultivosPrecioMap.value)
 // Un miembro sólo ve montos si tiene permiso de precios en algún módulo de costos.
 const verPlata = computed(() => granja.verPrecios('costos_contables') || granja.verPrecios('costos_proyectados'))
 // Asignaciones de la campaña activa, con ha y nombre inyectados desde el catastro.

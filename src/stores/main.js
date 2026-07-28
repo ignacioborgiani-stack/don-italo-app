@@ -195,21 +195,31 @@ export const useMainStore = defineStore('main', () => {
     return data?.length || 0
   }
 
-  // ── Contratos de alquiler por lote+campaña ────────────────────
+  // ── Contratos de alquiler por lote (rango de campañas) ────────
   async function loadContratosAlquiler() {
     const { data, error } = await supabase.from('contratos_alquiler').select('*').eq('user_id', getOwnerId())
     if (error) throw error
     contratosAlquiler.value = (data || []).map(contratoAlquilerFromDb)
   }
-  function contratoDeLote(loteId, campana) {
-    return contratosAlquiler.value.find(c => c.loteId === loteId && c.campana === campana) || null
+  // El contrato (único) del lote, exista o no vigencia para la campaña activa.
+  function contratoDeLote(loteId) {
+    return contratosAlquiler.value.find(c => c.loteId === loteId) || null
   }
-  async function upsertContratoAlquiler(loteId, campana, datos) {
+  // El contrato del lote SÓLO si está vigente para `campana` (inicio ≤ campaña ≤ fin).
+  function contratoVigente(loteId, campana) {
+    const c = contratoDeLote(loteId)
+    if (!c) return null
+    const y = campanaYear(campana), yi = campanaYear(c.campanaInicio), yf = campanaYear(c.campanaFin)
+    if (yi && y < yi) return null
+    if (yf && y > yf) return null
+    return c
+  }
+  async function upsertContratoAlquiler(loteId, datos) {
     const userId = getOwnerId()
-    const existing = contratoDeLote(loteId, campana)
-    const row = { ...contratoAlquilerToDb({ ...datos, id: existing?.id || uid(), loteId, campana }), user_id: userId }
+    const existing = contratoDeLote(loteId)
+    const row = { ...contratoAlquilerToDb({ ...datos, id: existing?.id || uid(), loteId }), user_id: userId }
     const { data, error } = await supabase.from('contratos_alquiler')
-      .upsert(row, { onConflict: 'user_id,lote_id,campana' }).select().single()
+      .upsert(row, { onConflict: 'user_id,lote_id' }).select().single()
     if (error) throw error
     const saved = contratoAlquilerFromDb(data)
     contratosAlquiler.value = existing
@@ -434,7 +444,7 @@ export const useMainStore = defineStore('main', () => {
     updProy,
     addStock, updStock, delStock, moveStock,
     loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
-    loadContratosAlquiler, contratoDeLote, upsertContratoAlquiler, delContratoAlquiler,
+    loadContratosAlquiler, contratoDeLote, contratoVigente, upsertContratoAlquiler, delContratoAlquiler,
     addMsg, setApiKey, setCampania,
   }
 })

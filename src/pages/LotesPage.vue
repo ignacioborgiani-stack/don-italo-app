@@ -235,7 +235,7 @@ const filas = computed(() => store.asignaciones
   .map(a => {
     const lote = lmStore.byId(a.loteId)
     const ha = parseFloat(lote?.ha) || 0
-    const contrato = store.contratoDeLote(a.loteId, store.campania)
+    const contrato = store.contratoVigente(a.loteId, store.campania)
     return { a, nombre: lote?.nombre || '—', ha, calc: calcLoteConAlquiler(a, ha, contrato, ctx.value.cultivosPrecio) }
   })
   .sort((x, y) => x.nombre.localeCompare(y.nombre)))
@@ -279,7 +279,7 @@ const resumenVer = computed(() => verRow.value
 // ── Alquiler del lote (contrato) ──────────────────────────────────
 const alquilerVer = computed(() => {
   if (!verRow.value) return null
-  const c = store.contratoDeLote(verRow.value.a.loteId, store.campania)
+  const c = store.contratoVigente(verRow.value.a.loteId, store.campania)
   if (!c) return null
   return { contrato: c, ...alquilerPorCultivo(c, verRow.value.a, verRow.value.ha, ctx.value.cultivosPrecio) }
 })
