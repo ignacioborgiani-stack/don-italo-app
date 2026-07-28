@@ -55,15 +55,14 @@
       </q-card>
     </q-dialog>
 
-    <!-- Contrato de alquiler -->
+    <!-- Contratos de alquiler (histórico del lote) -->
     <q-dialog v-if="contratoModal" :model-value="true" @hide="contratoModal=null">
-      <q-card style="width:560px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
+      <q-card style="width:600px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
         <div class="row items-center justify-between q-mb-md">
-          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">🏠 Contrato de alquiler — {{ contratoModal.lote.nombre }}</h2>
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">🏠 Alquiler — {{ contratoModal.lote.nombre }}</h2>
           <q-btn flat round dense icon="close" @click="contratoModal=null"/>
         </div>
-        <ContratoAlquilerForm :lote="contratoModal.lote" :initial="contratoModal.contrato"
-          @save="contratoModal=null" @delete="contratoModal=null" @cancel="contratoModal=null"/>
+        <ContratosAlquilerManager :lote="contratoModal.lote" @close="contratoModal=null"/>
       </q-card>
     </q-dialog>
 
@@ -94,7 +93,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { supabase } from '../lib/supabase'
 import LoteMaestroForm from '../components/LoteMaestroForm.vue'
-import ContratoAlquilerForm from '../components/ContratoAlquilerForm.vue'
+import ContratosAlquilerManager from '../components/ContratosAlquilerManager.vue'
 import LotesMapa from '../components/LotesMapa.vue'
 import { useMainStore } from '../stores/main'
 import { fmtNum } from '../utils/formatters'
@@ -110,27 +109,23 @@ const contratoModal = ref(null)
 const campYear = n => parseInt(String(n || '').slice(0, 4), 10) || 0
 const chipStyle = (bg, border, color) => `align-self:flex-start;background:${bg};border:1px solid ${border};color:${color};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600`
 
-// Chip del contrato del lote SEGÚN la campaña activa:
-//   • activa < inicio → null (todavía no arrancó)
-//   • inicio ≤ activa < fin → ámbar "… · vence {fin}"
-//   • activa == fin → naranja "⚠️ vence esta campaña"
-//   • activa > fin → rojo "Contrato vencido"
+// Chip del lote: SOLO el contrato vigente en la campaña activa.
+//   • hay contrato vigente → ámbar "… · vence {fin}" (naranja ⚠️ si vence esta campaña)
+//   • no hay vigente → sin chip
 function chipDeLote(loteId) {
-  const ct = mainStore.contratoDeLote(loteId)
+  const ct = mainStore.contratoVigente(loteId, mainStore.campania)
   if (!ct) return null
-  const yA = campYear(mainStore.campania), yi = campYear(ct.campanaInicio), yf = campYear(ct.campanaFin)
-  if (yi && yA < yi) return null
+  const yA = campYear(mainStore.campania), yf = campYear(ct.campanaFin)
   const base = ct.tipoContrato === 'quintales_fijos' ? `${fmtNum(ct.cantidad)} qq/ha` : `${fmtNum(ct.cantidad)}% cosecha`
-  if (yf && yA > yf)   return { text: `🏠 ${base} · Contrato vencido`,      style: chipStyle('#fef2f2', '#fecaca', '#dc2626') }
   if (yf && yA === yf) return { text: `🏠 ${base} · ⚠️ vence esta campaña`, style: chipStyle('#fff7ed', '#fdba74', '#9a3412') }
-  return { text: `🏠 ${base} · vence ${ct.campanaFin || '—'}`,             style: chipStyle('#fffbeb', '#fde68a', '#92400e') }
+  return { text: `🏠 ${base} · vence ${ct.campanaFin || '—'}`, style: chipStyle('#fffbeb', '#fde68a', '#92400e') }
 }
 const contratoChips = computed(() => {
   const out = {}
   for (const l of lotes.value) { const chip = chipDeLote(l.id); if (chip) out[l.id] = chip }
   return out
 })
-function openContrato(l) { contratoModal.value = { lote: l, contrato: mainStore.contratoDeLote(l.id) } }
+function openContrato(l) { contratoModal.value = { lote: l } }
 const hoverId = ref(null)
 const eliminarOpen   = ref(false)
 const eliminarTarget = ref(null)

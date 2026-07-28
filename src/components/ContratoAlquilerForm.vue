@@ -40,6 +40,7 @@
     </div>
 
     <p v-if="invalidoRango" style="font-size:12px;color:#dc2626;margin:8px 0 0">La campaña de inicio no puede ser posterior a la de fin.</p>
+    <p v-else-if="solapaConOtro" style="font-size:12px;color:#dc2626;margin:8px 0 0">⚠️ El rango se superpone con otro contrato del lote. No puede haber dos contratos vigentes en la misma campaña.</p>
 
     <!-- Reparto entre cultivos: sólo si el lote es doble en la campaña activa -->
     <div v-if="esDoble" style="margin-top:12px">
@@ -70,13 +71,9 @@
       <div v-if="!precioRefOk" style="color:#9a3412;margin-top:2px">⚠️ El cultivo de referencia «{{ c.cultivoReferencia }}» no tiene precio en el catálogo → el alquiler da 0.</div>
     </div>
 
-    <div class="row items-center justify-between q-mt-md">
-      <q-btn v-if="initial" flat dense color="negative" icon="delete_outline" label="Quitar contrato" :loading="busy==='del'" @click="quitar"/>
-      <div v-else/>
-      <div class="q-gutter-sm">
-        <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-        <q-btn unelevated color="primary" label="Guardar contrato" :loading="busy==='save'" :disable="invalidoRango" @click="guardar"/>
-      </div>
+    <div class="row justify-end q-gutter-sm q-mt-md">
+      <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
+      <q-btn unelevated color="primary" label="Guardar contrato" :loading="busy==='save'" :disable="invalidoRango || solapaConOtro" @click="guardar"/>
     </div>
     <p v-if="error" style="font-size:12px;color:#dc2626;margin:8px 0 0">{{ error }}</p>
   </div>
@@ -90,7 +87,7 @@ import { alquilerPorCultivo } from '../utils/calculations'
 import { fmtUSD, fmtNum } from '../utils/formatters'
 
 const props = defineProps({ lote: { type: Object, required: true }, initial: { type: Object, default: null } })
-const emit  = defineEmits(['save', 'cancel', 'delete'])
+const emit  = defineEmits(['save', 'cancel'])
 
 const main = useMainStore()
 const catStore = useCatalogoStore()
@@ -134,6 +131,16 @@ const c = reactive({
 })
 
 const invalidoRango = computed(() => campYear(c.campanaInicio) > campYear(c.campanaFin))
+// ¿El rango se superpone con OTRO contrato del lote? (excluye el que se edita)
+const solapaConOtro = computed(() => {
+  const ni = campYear(c.campanaInicio), nf = campYear(c.campanaFin)
+  if (!ni || !nf) return false
+  return main.contratosDeLote(props.lote.id).some(o => {
+    if (props.initial && o.id === props.initial.id) return false
+    const oi = campYear(o.campanaInicio), of = campYear(o.campanaFin)
+    return oi && of && ni <= of && nf >= oi
+  })
+})
 const precioRefOk = computed(() => (parseFloat(cultivosPrecio.value[c.cultivoReferencia]) || 0) > 0)
 
 // Preview sobre la asignación de la campaña activa (o simple si el lote no está asignado).
@@ -145,24 +152,22 @@ const preview = computed(() => {
 const busy = ref(null)
 const error = ref('')
 async function guardar() {
-  if (invalidoRango.value) return
+  if (invalidoRango.value || solapaConOtro.value) return
   busy.value = 'save'; error.value = ''
+  const datos = {
+    campanaInicio: c.campanaInicio, campanaFin: c.campanaFin,
+    tipoContrato: c.tipoContrato, cultivoReferencia: c.cultivoReferencia, cantidad: c.cantidad,
+    repartoEstival: esDoble.value ? c.repartoEstival : 100,
+    repartoInvernal: esDoble.value ? c.repartoInvernal : 0,
+  }
   try {
-    await main.upsertContratoAlquiler(props.lote.id, {
-      campanaInicio: c.campanaInicio, campanaFin: c.campanaFin,
-      tipoContrato: c.tipoContrato, cultivoReferencia: c.cultivoReferencia, cantidad: c.cantidad,
-      repartoEstival: esDoble.value ? c.repartoEstival : 100,
-      repartoInvernal: esDoble.value ? c.repartoInvernal : 0,
-    })
+    if (props.initial) await main.updContratoAlquiler(props.initial.id, datos)   // EDITAR
+    else               await main.addContratoAlquiler(props.lote.id, datos)      // CREAR
     emit('save')
-  } catch (e) { error.value = e.message || 'No se pudo guardar el contrato' }
-  finally { busy.value = null }
-}
-async function quitar() {
-  if (!props.initial) return
-  busy.value = 'del'; error.value = ''
-  try { await main.delContratoAlquiler(props.initial.id); emit('delete') }
-  catch (e) { error.value = e.message || 'No se pudo quitar el contrato' }
-  finally { busy.value = null }
+  } catch (e) {
+    error.value = /solap/i.test(e.message || '')
+      ? 'El rango se superpone con otro contrato del lote.'
+      : (e.message || 'No se pudo guardar el contrato')
+  } finally { busy.value = null }
 }
 </script>

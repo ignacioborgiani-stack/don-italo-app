@@ -195,42 +195,42 @@ export const useMainStore = defineStore('main', () => {
     return data?.length || 0
   }
 
-  // ── Contratos de alquiler por lote (rango de campañas) ────────
+  // ── Contratos de alquiler por lote (varios por lote, rangos sin solape) ──
   async function loadContratosAlquiler() {
     const { data, error } = await supabase.from('contratos_alquiler').select('*').eq('user_id', getOwnerId())
     if (error) throw error
     contratosAlquiler.value = (data || []).map(contratoAlquilerFromDb)
   }
-  // El contrato (único) del lote, exista o no vigencia para la campaña activa.
-  function contratoDeLote(loteId) {
-    return contratosAlquiler.value.find(c => c.loteId === loteId) || null
+  // TODOS los contratos del lote, ordenados por campaña de inicio.
+  function contratosDeLote(loteId) {
+    return contratosAlquiler.value
+      .filter(c => c.loteId === loteId)
+      .sort((a, b) => campanaYear(a.campanaInicio) - campanaYear(b.campanaInicio))
   }
-  // El contrato del lote SÓLO si está vigente para `campana` (inicio ≤ campaña ≤ fin).
+  // El contrato del lote vigente en `campana` (inicio ≤ campaña ≤ fin). Como los
+  // rangos no se superponen, hay a lo sumo uno.
   function contratoVigente(loteId, campana) {
-    const c = contratoDeLote(loteId)
-    if (!c) return null
-    const y = campanaYear(campana), yi = campanaYear(c.campanaInicio), yf = campanaYear(c.campanaFin)
-    if (yi && y < yi) return null
-    if (yf && y > yf) return null
-    return c
+    const y = campanaYear(campana)
+    return contratosDeLote(loteId).find(c => {
+      const yi = campanaYear(c.campanaInicio), yf = campanaYear(c.campanaFin)
+      return (!yi || y >= yi) && (!yf || y <= yf)
+    }) || null
   }
-  async function upsertContratoAlquiler(loteId, datos) {
-    const existing = contratoDeLote(loteId)
-    if (existing) {
-      // EDITAR: update por id
-      const upd = contratoAlquilerToDb({ ...datos, id: existing.id, loteId })
-      const { data, error } = await supabase.from('contratos_alquiler').update(upd).eq('id', existing.id).select().single()
-      if (error) throw error
-      const saved = contratoAlquilerFromDb(data)
-      contratosAlquiler.value = contratosAlquiler.value.map(c => c.id === saved.id ? saved : c)
-      return saved
-    }
-    // CREAR: insert nuevo
+  async function addContratoAlquiler(loteId, datos) {
     const row = { ...contratoAlquilerToDb({ ...datos, id: uid(), loteId }), user_id: getOwnerId() }
     const { data, error } = await supabase.from('contratos_alquiler').insert(row).select().single()
     if (error) throw error
     const saved = contratoAlquilerFromDb(data)
     contratosAlquiler.value = [...contratosAlquiler.value, saved]
+    return saved
+  }
+  async function updContratoAlquiler(id, datos) {
+    const prev = contratosAlquiler.value.find(c => c.id === id)
+    const upd = contratoAlquilerToDb({ ...prev, ...datos, id })
+    const { data, error } = await supabase.from('contratos_alquiler').update(upd).eq('id', id).select().single()
+    if (error) throw error
+    const saved = contratoAlquilerFromDb(data)
+    contratosAlquiler.value = contratosAlquiler.value.map(c => c.id === id ? saved : c)
     return saved
   }
   async function delContratoAlquiler(id) {
@@ -450,7 +450,7 @@ export const useMainStore = defineStore('main', () => {
     updProy,
     addStock, updStock, delStock, moveStock,
     loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
-    loadContratosAlquiler, contratoDeLote, contratoVigente, upsertContratoAlquiler, delContratoAlquiler,
+    loadContratosAlquiler, contratosDeLote, contratoVigente, addContratoAlquiler, updContratoAlquiler, delContratoAlquiler,
     addMsg, setApiKey, setCampania,
   }
 })
