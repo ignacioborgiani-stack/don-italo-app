@@ -122,7 +122,7 @@
               </tbody>
             </table>
           </div>
-          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos/ha ÷ precio (tn/ha y kg). Margen de contribución = precio − costo total/ha ÷ rinde.</p>
+          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos/ha ÷ precio (tn/ha y kg). Contribución marginal/tn = precio − costos variables por tn (sólo cosecha y flete ÷ rinde; los costos por ha no entran).</p>
         </div>
 
         <!-- Insumos reales del lote -->
@@ -210,7 +210,7 @@ import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
-import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
+import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, costoVariableHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -303,7 +303,8 @@ const indicadoresVer = computed(() => {
     if (!cultivo?.nombre) return null
     const alquilerHa = alq ? (alquilerHaContrato || 0) : alquilerHaItems(cultivo)  // si no hay contrato, usa ítem 'arrendamiento'
     return { nombre: cultivo.nombre, ind: indicadoresCultivo({
-      costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, precioTn: cultivo.precioVentaTn, rindeQq: cultivo.rendimientoQq,
+      costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, costoVariableHa: costoVariableHaItems(cultivo),
+      precioTn: cultivo.precioVentaTn, rindeQq: cultivo.rendimientoQq,
     }) }
   }
   if (a.tipoSiembra === 'doble') return [mk(a.cultivoEstival, alq?.estivalHa), mk(a.cultivoInvernal, alq?.invernalHa)].filter(Boolean)

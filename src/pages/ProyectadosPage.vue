@@ -294,7 +294,7 @@ import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor, TODOS_CULTIVARES, CULTIVARES_INVERNALES, CULTIVARES_ESTIVALES } from '../utils/constants'
-import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, indicadoresCultivo, calcProyDoble } from '../utils/calculations'
+import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, costoVariableHaItems, indicadoresCultivo, calcProyDoble } from '../utils/calculations'
 import { nombreDoble } from '../utils/mappers'
 import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
@@ -349,6 +349,7 @@ const barData = computed(() => proyCampania.value.map(p => {
   // Indicadores: el alquiler de Proyectados sale del ítem 'arrendamiento' del presupuesto.
   const ind = indicadoresCultivo({
     costoSinAlqHa: costoHaSinAlquiler(p), alquilerHa: alquilerHaItems(p),
+    costoVariableHa: costoVariableHaItems(p),
     precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
   })
   return {

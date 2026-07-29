@@ -255,6 +255,16 @@ export const costoHaSinAlquiler = cultivo =>
 export const alquilerHaItems = cultivo =>
   (cultivo?.itemsCosto || []).filter(it => it.categoria === 'arrendamiento').reduce((s, it) => s + _itemHa(it), 0)
 
+// Categorías cuyo costo escala con las TONELADAS producidas: son los costos
+// VARIABLES de la contribución marginal. Cosecha (si es % del valor ya es por
+// tn; si es monto fijo/ha, dividirlo por el rinde lo lleva a USD/tn), flete
+// (USD/tn) y comercialización si existiera. El resto (semilla, fertilizante,
+// fitosanitarios, labores, seguro, arrendamiento) es fijo POR HECTÁREA — se
+// gasta igual sea cual sea el rinde — y NO entra.
+export const CATEGORIAS_VARIABLES_TN = ['cosecha', 'flete', 'comercializacion']
+export const costoVariableHaItems = cultivo =>
+  (cultivo?.itemsCosto || []).filter(it => CATEGORIAS_VARIABLES_TN.includes(it.categoria)).reduce((s, it) => s + _itemHa(it), 0)
+
 // Total USD del alquiler del lote según el contrato (depende del precio del cultivo de referencia).
 //   quintales_fijos:    cantidad(qq/ha) × ha / 10 (→tn) × precioRef(USD/tn)
 //   porcentaje_cosecha: cantidad(%)/100 × rinde estival(qq/ha) × ha / 10 (→tn) × precioRef
@@ -308,7 +318,7 @@ export function calcProyDoble(p) {
       tipo: cultivo?.tipo || 'estival',
       costoSinAlqHa, alquilerHa, costoHa, ingresoHa, margenHa: ingresoHa - costoHa,
       ind: indicadoresCultivo({
-        costoSinAlqHa, alquilerHa,
+        costoSinAlqHa, alquilerHa, costoVariableHa: costoVariableHaItems(cultivo),
         precioTn: cultivo?.precioVentaTn, rindeQq: cultivo?.rendimientoQq,
       }),
     }
@@ -325,15 +335,20 @@ export function calcProyDoble(p) {
   }
 }
 
-// Indicadores por cultivo: rinde de indiferencia (con/sin alquiler) y margen de contribución/tn.
-export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, precioTn = 0, rindeQq = 0 }) {
+// Indicadores por cultivo: rinde de indiferencia (con/sin alquiler) y contribución marginal/tn.
+// `costoVariableHa` = SOLO las categorías que escalan con las toneladas (ver
+// CATEGORIAS_VARIABLES_TN); los llamadores lo obtienen con costoVariableHaItems.
+export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, costoVariableHa = 0, precioTn = 0, rindeQq = 0 }) {
   const precio = parseFloat(precioTn) || 0
   const rindeTn = (parseFloat(rindeQq) || 0) / 10
   const sinHa = parseFloat(costoSinAlqHa) || 0
   const conHa = sinHa + (parseFloat(alquilerHa) || 0)
   const indif = costo => precio > 0 ? costo / precio : 0   // tn/ha
   const sinTn = indif(sinHa), conTn = indif(conHa)
-  const costoVarTn = rindeTn > 0 ? conHa / rindeTn : 0
+  // Contribución marginal CLÁSICA: precio − costos variables por tonelada.
+  // Los costos por ha (semilla, fert, fito, labores, seguro, alquiler) son
+  // fijos por hectárea y no entran acá (sí en el rinde de indiferencia).
+  const costoVarTn = rindeTn > 0 ? (parseFloat(costoVariableHa) || 0) / rindeTn : 0
   return {
     costoSinAlqHa: sinHa, alquilerHa: parseFloat(alquilerHa) || 0, costoConAlqHa: conHa,
     rindeIndifSinTn: sinTn, rindeIndifSinKg: sinTn * 1000,
