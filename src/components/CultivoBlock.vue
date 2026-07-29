@@ -24,7 +24,7 @@
       :ordenar-cat="cultivoObj.ordenarCat !== false"
       :rendimiento-qq="cultivoObj.rendimientoQq"
       :precio-venta-tn="cultivoObj.precioVentaTn"
-      :precio-editable="true"
+      :precio-editable="precioEditable"
       @update="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v.items,etapas:v.etapas,ordenarCat:v.ordenarCat})"/>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f9fafb;border-radius:8px;padding:8px 10px;margin-top:10px">
       <div v-for="[l,v,c] in stats" :key="l">
@@ -51,6 +51,8 @@ const props = defineProps({
   borderColor: String,
   cultivoType: String,
   cultivoObj:  Object,
+  // Contables congela precios (editable); Proyectados recalcula en vivo.
+  precioEditable: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:cultivoObj'])
 

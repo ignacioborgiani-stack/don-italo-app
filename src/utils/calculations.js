@@ -287,6 +287,44 @@ export function alquilerPorCultivo(contrato, asignacion, ha, cultivosPrecio = {}
   return { total, simpleUsd: total, simpleHa: perHa(total) }
 }
 
+// ── Presupuesto de doble cultivo (Proyectados) ────────────────────
+// A diferencia de Contables, un presupuesto no está atado a un lote y por lo
+// tanto no tiene contrato: el alquiler es el que el usuario carga como ítem
+// 'arrendamiento'. Se JUNTA el de los dos cultivos y se reparte según el % que
+// define el usuario. Ojo: el reparto NO cambia el total consolidado (mueve
+// alquiler de un cultivo al otro), sólo el margen y los indicadores de cada uno.
+export function calcProyDoble(p) {
+  const rI = parseFloat(p?.repartoInvernal ?? 50) || 0
+  const rE = parseFloat(p?.repartoEstival ?? 50) || 0
+  const sum = (rI + rE) || 100
+  const alquilerTotalHa = alquilerHaItems(p?.cultivoInvernal) + alquilerHaItems(p?.cultivoEstival)
+
+  const parte = (cultivo, alquilerHa) => {
+    const costoSinAlqHa = costoHaSinAlquiler(cultivo)
+    const costoHa   = costoSinAlqHa + alquilerHa
+    const ingresoHa = calcIngresoHa(cultivo)
+    return {
+      nombre: cultivo?.nombre || '—',
+      tipo: cultivo?.tipo || 'estival',
+      costoSinAlqHa, alquilerHa, costoHa, ingresoHa, margenHa: ingresoHa - costoHa,
+      ind: indicadoresCultivo({
+        costoSinAlqHa, alquilerHa,
+        precioTn: cultivo?.precioVentaTn, rindeQq: cultivo?.rendimientoQq,
+      }),
+    }
+  }
+
+  const inv = parte(p?.cultivoInvernal, alquilerTotalHa * rI / sum)
+  const est = parte(p?.cultivoEstival,  alquilerTotalHa * rE / sum)
+  return {
+    alquilerTotalHa,
+    costoHa:   inv.costoHa + est.costoHa,
+    ingresoHa: inv.ingresoHa + est.ingresoHa,
+    margenHa:  (inv.ingresoHa + est.ingresoHa) - (inv.costoHa + est.costoHa),
+    inv, est,
+  }
+}
+
 // Indicadores por cultivo: rinde de indiferencia (con/sin alquiler) y margen de contribución/tn.
 export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, precioTn = 0, rindeQq = 0 }) {
   const precio = parseFloat(precioTn) || 0

@@ -339,14 +339,18 @@ export const useMainStore = defineStore('main', () => {
     const camp = d.campana || campania.value
     const existing = proyecciones.value.find(p => p.cultivo === cultivo && p.campana === camp)
     const upd = { ...existing, ...d, cultivo, campana: camp }
+    const row = proyToDb(upd, camp)
+    // En un doble, el nombre de la fila deriva de los dos cultivos: si el usuario
+    // cambió alguno, hay que reflejarlo en el store o queda desincronizado.
+    upd.cultivo = row.cultivo
 
     if (existing?.id) {
-      const { error } = await supabase.from('proyecciones').update(proyToDb(upd, camp)).eq('id', existing.id)
+      const { error } = await supabase.from('proyecciones').update(row).eq('id', existing.id)
       if (error) throw error
       proyecciones.value = proyecciones.value.map(p => p.id === existing.id ? upd : p)
     } else {
       const { data, error } = await supabase.from('proyecciones')
-        .insert({ ...proyToDb(upd, camp), user_id: userId }).select().single()
+        .insert({ ...row, user_id: userId }).select().single()
       if (error) throw error
       proyecciones.value = [...proyecciones.value, proyFromDb(data)]
     }

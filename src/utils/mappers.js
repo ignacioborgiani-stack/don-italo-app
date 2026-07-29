@@ -12,26 +12,77 @@ export const loteFromDb = r => ({
   cultivoInvernal: r.cultivo_invernal, cultivoEstival: r.cultivo_estival,
 })
 
+// Un presupuesto de doble cultivo se guarda en UNA sola fila: ambos cultivos van
+// dentro del JSONB `datos` (misma forma que `asignaciones_campana` en Contables).
+// No hace falta migración: `datos` ya es jsonb y la columna `cultivo` guarda el
+// nombre combinado ("Trigo / Soja"), con lo que el UNIQUE(user_id, cultivo,
+// campana) sigue valiendo = un presupuesto por combinación y campaña.
+const cultivoProyToDb = c => ({
+  nombre: c?.nombre || '',
+  tipo: c?.tipo || 'estival',
+  rendimientoQq: c?.rendimientoQq || 0,
+  precioVentaTn: c?.precioVentaTn || 0,
+  itemsCosto: c?.itemsCosto || [],
+  etapas: c?.etapas || [],
+  ordenarCat: c?.ordenarCat !== false,
+})
+const cultivoProyFromDb = (c, tipo) => ({
+  nombre: c?.nombre || '',
+  tipo: c?.tipo || tipo,
+  rendimientoQq: c?.rendimientoQq || 0,
+  precioVentaTn: c?.precioVentaTn || 0,
+  itemsCosto: c?.itemsCosto || [],
+  etapas: c?.etapas || [],
+  ordenarCat: c?.ordenarCat !== false,
+})
+// Nombre combinado que va a la columna `cultivo` de un presupuesto doble.
+export const nombreDoble = (inv, est) => `${inv || '—'} / ${est || '—'}`
+
 // `campana` es obligatoria: la tabla tiene UNIQUE(user_id, cultivo, campana). El
 // fallback lo decide quien llama (nunca una campaña fija acá, que etiquetaría
 // presupuestos nuevos en una campaña vieja).
 export const proyToDb = (p, campana) => ({
-  cultivo: p.cultivo,
+  cultivo: p.tipoSiembra === 'doble' ? nombreDoble(p.cultivoInvernal?.nombre, p.cultivoEstival?.nombre) : p.cultivo,
   campana: p.campana || campana,
-  datos: {
-    tipo: p.tipo, rendimientoQq: p.rendimientoQq, precioVentaTn: p.precioVentaTn,
-    itemsCosto: p.itemsCosto || [], etapas: p.etapas || [], ordenarCat: p.ordenarCat !== false,
-  },
+  datos: p.tipoSiembra === 'doble'
+    ? {
+        tipoSiembra: 'doble',
+        cultivoInvernal: cultivoProyToDb(p.cultivoInvernal),
+        cultivoEstival:  cultivoProyToDb(p.cultivoEstival),
+        // Reparto del alquiler entre los dos cultivos (%).
+        repartoInvernal: p.repartoInvernal == null ? 50 : parseFloat(p.repartoInvernal),
+        repartoEstival:  p.repartoEstival  == null ? 50 : parseFloat(p.repartoEstival),
+      }
+    : {
+        tipo: p.tipo, rendimientoQq: p.rendimientoQq, precioVentaTn: p.precioVentaTn,
+        itemsCosto: p.itemsCosto || [], etapas: p.etapas || [], ordenarCat: p.ordenarCat !== false,
+      },
 })
-export const proyFromDb = r => ({
-  id: r.id, cultivo: r.cultivo, campana: r.campana,
-  tipo: r.datos?.tipo || 'estival',
-  rendimientoQq: r.datos?.rendimientoQq || 0,
-  precioVentaTn: r.datos?.precioVentaTn || 0,
-  itemsCosto: r.datos?.itemsCosto || [],
-  etapas: r.datos?.etapas || [],
-  ordenarCat: r.datos?.ordenarCat !== false,
-})
+export const proyFromDb = r => {
+  const d = r.datos || {}
+  const base = { id: r.id, cultivo: r.cultivo, campana: r.campana }
+  // Las filas viejas no tienen `tipoSiembra` → simple (no se tocan).
+  if (d.tipoSiembra === 'doble') {
+    return {
+      ...base,
+      tipoSiembra: 'doble',
+      cultivoInvernal: cultivoProyFromDb(d.cultivoInvernal, 'invernal'),
+      cultivoEstival:  cultivoProyFromDb(d.cultivoEstival, 'estival'),
+      repartoInvernal: d.repartoInvernal == null ? 50 : parseFloat(d.repartoInvernal),
+      repartoEstival:  d.repartoEstival  == null ? 50 : parseFloat(d.repartoEstival),
+    }
+  }
+  return {
+    ...base,
+    tipoSiembra: 'simple',
+    tipo: d.tipo || 'estival',
+    rendimientoQq: d.rendimientoQq || 0,
+    precioVentaTn: d.precioVentaTn || 0,
+    itemsCosto: d.itemsCosto || [],
+    etapas: d.etapas || [],
+    ordenarCat: d.ordenarCat !== false,
+  }
+}
 
 export const stToDb = s => ({
   id: s.id, nombre: s.nombre, tipo: s.tipo,
