@@ -257,8 +257,9 @@ export const useMainStore = defineStore('main', () => {
     await supabase.from('lotes').insert(
       MOCK_LOTES.map(l => ({ ...loteToDb({ ...l, id: uid() }), user_id: userId }))
     )
+    // Los datos de ejemplo son todos de 2024/25 (igual que MOCK_LOTES).
     await supabase.from('proyecciones').insert(
-      MOCK_PROYECCIONES.map(p => ({ ...proyToDb(p), user_id: userId }))
+      MOCK_PROYECCIONES.map(p => ({ ...proyToDb(p, '2024/25'), user_id: userId }))
     )
     await supabase.from('stocks').insert(
       MOCK_STOCKS.map(s => ({ ...stToDb({ ...s, id: uid() }), user_id: userId }))
@@ -330,19 +331,24 @@ export const useMainStore = defineStore('main', () => {
   }
 
   // ── Proyecciones ──────────────────────────────────────────────
+  // Los presupuestos son POR CAMPAÑA (la tabla tiene UNIQUE user_id+cultivo+campana),
+  // así que hay que resolver el existente por cultivo Y campaña: si no, editar el
+  // presupuesto de una campaña pisaría el de otra.
   async function updProy(cultivo, d) {
     const userId = getOwnerId()
-    const existing = proyecciones.value.find(p => p.cultivo === cultivo)
-    const upd = { ...existing, ...d }
+    const camp = d.campana || campania.value
+    const existing = proyecciones.value.find(p => p.cultivo === cultivo && p.campana === camp)
+    const upd = { ...existing, ...d, cultivo, campana: camp }
 
     if (existing?.id) {
-      await supabase.from('proyecciones').update(proyToDb(upd)).eq('id', existing.id)
-      proyecciones.value = proyecciones.value.map(p => p.cultivo === cultivo ? upd : p)
+      const { error } = await supabase.from('proyecciones').update(proyToDb(upd, camp)).eq('id', existing.id)
+      if (error) throw error
+      proyecciones.value = proyecciones.value.map(p => p.id === existing.id ? upd : p)
     } else {
-      const { data } = await supabase.from('proyecciones')
-        .insert({ ...proyToDb(upd), user_id: userId }).select().single()
-      const saved = data ? proyFromDb(data) : upd
-      proyecciones.value = [...proyecciones.value, saved]
+      const { data, error } = await supabase.from('proyecciones')
+        .insert({ ...proyToDb(upd, camp), user_id: userId }).select().single()
+      if (error) throw error
+      proyecciones.value = [...proyecciones.value, proyFromDb(data)]
     }
   }
 

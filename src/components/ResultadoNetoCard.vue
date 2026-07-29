@@ -16,7 +16,7 @@
       </div>
     </div>
     <p v-if="!costosFijos" style="font-size:10px;color:#9ca3af;margin:10px 0 0">
-      Sin costos fijos cargados para la campaña — cargalos en <b>Catálogo → Costos Fijos</b>.
+      Sin costos fijos cargados para la campaña — cargalos en <b>Costos Fijos de Estructura</b>, al final de Costos Contables o Proyectados.
     </p>
   </div>
 </template>

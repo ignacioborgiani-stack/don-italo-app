@@ -54,7 +54,7 @@
 
     <div class="row justify-end q-gutter-sm">
       <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-      <q-btn unelevated color="primary" label="Guardar" @click="onGuardar"/>
+      <q-btn unelevated color="primary" label="Guardar" :loading="guardando" @click="onGuardar"/>
     </div>
   </div>
 </template>
@@ -68,7 +68,7 @@ import { usePlantillasStore } from '../stores/plantillas'
 import { calcIngresoHa, calcularCostoItemHa } from '../utils/calculations'
 import { fmtUSD } from '../utils/formatters'
 
-const props = defineProps({ proy: Object })
+const props = defineProps({ proy: Object, guardando: { type: Boolean, default: false } })
 const emit  = defineEmits(['save', 'cancel'])
 
 const catStore = useCatalogoStore()

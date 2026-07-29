@@ -1,10 +1,25 @@
 <template>
   <q-page style="padding:24px">
-    <div class="row items-center justify-between q-mb-lg">
-      <h2 style="font-size:18px;font-weight:700;margin:0">Costos Proyectados</h2>
-      <div v-if="verPrecios" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 16px;font-size:13px">
-        Margen total campaña: <b :style="{color:totalMB>=0?'#3a6b35':'#dc2626',fontSize:'16px'}">{{ fmtK(totalMB) }}</b>
+    <div class="row items-center justify-between q-mb-lg" style="flex-wrap:wrap;gap:12px">
+      <div class="row items-center q-gutter-sm">
+        <h2 style="font-size:18px;font-weight:700;margin:0">Costos Proyectados</h2>
+        <span style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:5px 12px;font-size:13px;font-weight:600;color:#2d5a27">📅 {{ store.campania }}</span>
       </div>
+      <div class="row items-center q-gutter-sm">
+        <div v-if="verPrecios" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 16px;font-size:13px">
+          Margen total campaña: <b :style="{color:totalMB>=0?'#3a6b35':'#dc2626',fontSize:'16px'}">{{ fmtK(totalMB) }}</b>
+        </div>
+        <q-btn v-if="puedeEditar" unelevated color="primary" icon="add" label="Agregar cultivo" @click="abrirNuevo"/>
+      </div>
+    </div>
+
+    <!-- Sin presupuestos en esta campaña -->
+    <div v-if="!barData.length" style="background:#fff;border:1px dashed #d4cfc4;border-radius:12px;padding:36px;text-align:center;color:#6b7280;margin-bottom:28px">
+      <p style="margin:0 0 6px">No hay presupuestos cargados para <b style="color:#2d5a27">{{ store.campania }}</b>.</p>
+      <p v-if="proyOtrasCampanas" style="font-size:12px;margin:0 0 14px">
+        Hay {{ proyOtrasCampanas }} presupuesto{{ proyOtrasCampanas>1?'s':'' }} en otras campañas — cambiá de campaña en la barra superior para verlo{{ proyOtrasCampanas>1?'s':'' }}.
+      </p>
+      <q-btn v-if="puedeEditar" unelevated color="primary" icon="add" label="Agregar cultivo" @click="abrirNuevo"/>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;margin-bottom:28px">
@@ -43,7 +58,7 @@
               <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b></div>
             </div>
           </template>
-          <button @click="editProy=store.proyecciones.find(p=>p.cultivo===d.cultivo)"
+          <button @click="editProy=proyDe(d.cultivo)"
             style="width:100%;padding:7px;border-radius:7px;border:1.5px solid #3a6b35;background:#fff;color:#3a6b35;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
             Editar presupuesto
           </button>
@@ -109,14 +124,53 @@
       <CostosFijosSection/>
     </template>
 
+    <!-- Nuevo cultivo: elegir del Catálogo de Cultivos -->
+    <q-dialog v-model="nuevoOpen">
+      <q-card style="width:420px;max-width:95vw;border-radius:14px;padding:26px">
+        <div class="row items-center justify-between q-mb-md">
+          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Nuevo presupuesto</h2>
+          <q-btn flat round dense icon="close" @click="nuevoOpen=false"/>
+        </div>
+        <p style="font-size:12px;color:#6b7280;margin:0 0 12px">
+          Se crea el presupuesto del cultivo para <b style="color:#2d5a27">📅 {{ store.campania }}</b>.
+        </p>
+
+        <template v-if="cultivosDisponibles.length">
+          <label class="di-lbl" style="display:block;font-size:11px;font-weight:600;color:#6b7280">Cultivo</label>
+          <select v-model="nuevoCultivo" class="di-inp"
+            style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #d4cfc4;border-radius:7px;font-family:inherit;font-size:13px;background:#fff">
+            <option value="">— Elegí un cultivo —</option>
+            <option v-for="c in cultivosDisponibles" :key="c.nombre" :value="c.nombre">
+              {{ c.nombre }} {{ c.tipo === 'invernal' ? '🌾' : '☀️' }}
+            </option>
+          </select>
+          <p style="font-size:11px;color:#9ca3af;margin:8px 0 0">
+            Se precargan rinde y precio del Catálogo de Cultivos; después los podés ajustar.
+          </p>
+        </template>
+        <p v-else style="font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin:0">
+          Todos los cultivos del catálogo ya tienen presupuesto en esta campaña.
+          Podés agregar más cultivos desde <b>Catálogo → Cultivos</b>.
+        </p>
+
+        <div class="row justify-end q-gutter-sm q-mt-md">
+          <q-btn flat label="Cancelar" @click="nuevoOpen=false"/>
+          <q-btn unelevated color="primary" label="Crear presupuesto" :disable="!nuevoCultivo" @click="crearPresupuesto"/>
+        </div>
+      </q-card>
+    </q-dialog>
+
     <!-- Edit proy modal -->
-    <q-dialog v-if="editProy" :model-value="true" @hide="editProy=null">
+    <q-dialog v-if="editProy" :model-value="true" @hide="cerrarEditor">
       <q-card style="width:620px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
         <div class="row items-center justify-between q-mb-md">
           <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Presupuesto: {{ editProy.cultivo }}</h2>
-          <q-btn flat round dense icon="close" @click="editProy=null"/>
+          <q-btn flat round dense icon="close" @click="cerrarEditor"/>
         </div>
-        <ProyForm :proy="editProy" @save="onSaveProy" @cancel="editProy=null"/>
+        <p v-if="errorGuardar" style="font-size:12px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin:0 0 12px">
+          {{ errorGuardar }}
+        </p>
+        <ProyForm :proy="editProy" :guardando="guardando" @save="onSaveProy" @cancel="cerrarEditor"/>
       </q-card>
     </q-dialog>
   </q-page>
@@ -132,7 +186,7 @@ import SvgHBar from '../components/charts/SvgHBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
 import ProyForm from './ProyForm.vue'
-import { getCultivoColor } from '../utils/constants'
+import { getCultivoColor, TODOS_CULTIVARES, CULTIVARES_INVERNALES } from '../utils/constants'
 import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, indicadoresCultivo } from '../utils/calculations'
 import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK } from '../utils/formatters'
@@ -141,8 +195,13 @@ const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
 const catStore = useCatalogoStore()
 const granja   = useGranjaStore()
-const verPrecios = computed(() => granja.verPrecios('costos_proyectados'))
+const verPrecios  = computed(() => granja.verPrecios('costos_proyectados'))
+const puedeEditar = computed(() => granja.puedeEditar('costos_proyectados'))
 const editProy = ref(null)
+
+// Los presupuestos son POR CAMPAÑA (UNIQUE user_id+cultivo+campana en la tabla).
+const proyCampania = computed(() => store.proyecciones.filter(p => p.campana === store.campania))
+const proyOtrasCampanas = computed(() => store.proyecciones.length - proyCampania.value.length)
 
 const ctx = computed(() => ({
   catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
@@ -158,7 +217,7 @@ const calcHaCultivo = cultivo => store.asignaciones
     return a.cultivo?.nombre === cultivo ? s + ha : s
   }, 0)
 
-const barData  = computed(() => store.proyecciones.map(p => {
+const barData  = computed(() => proyCampania.value.map(p => {
   const ha = calcHaCultivo(p.cultivo), costoHa = calcCostoHa({ itemsCosto: p.itemsCosto || [] }), ingHa = calcIngresoHa(p)
   // Indicadores: el alquiler de Proyectados sale del ítem 'arrendamiento' del presupuesto.
   const ind = indicadoresCultivo({
@@ -175,7 +234,7 @@ const totalMB = computed(() => barData.value.reduce((s, d) => s + d.margenTotal,
 // Insumos proyectados por cultivo (tabla colapsable + Excel)
 const abiertos = ref(new Set())
 function toggle(cultivo) { const s = new Set(abiertos.value); s.has(cultivo) ? s.delete(cultivo) : s.add(cultivo); abiertos.value = s }
-const proyDe = cultivo => store.proyecciones.find(p => p.cultivo === cultivo)
+const proyDe = cultivo => proyCampania.value.find(p => p.cultivo === cultivo)
 function insumosDe(d) {
   const p = proyDe(d.cultivo)
   return p ? filasCultivo(p, d.ha, ctx.value, d.cultivo) : []
@@ -198,5 +257,51 @@ function excelProy(d) {
   })
 }
 
-function onSaveProy(f) { store.updProy(editProy.value.cultivo, f); editProy.value = null }
+// ── Alta de presupuesto ───────────────────────────────────────────
+// Los cultivos salen del Catálogo de Cultivos; si aún no cargó ninguno, se
+// ofrece la lista fija de referencia para no dejar la pantalla sin salida.
+const nuevoOpen   = ref(false)
+const nuevoCultivo = ref('')
+const cultivosCatalogo = computed(() => catStore.cultivos.length
+  ? catStore.cultivos.map(c => ({ nombre: c.nombre, tipo: c.tipo, rendimientoQq: c.rendimientoEstimadoQq, precioVentaTn: c.precioUsdTn }))
+  : TODOS_CULTIVARES.map(c => ({
+      nombre: c.nombre,
+      tipo: CULTIVARES_INVERNALES.some(i => i.nombre === c.nombre) ? 'invernal' : 'estival',
+      rendimientoQq: 0, precioVentaTn: 0,
+    })))
+// Excluye los que YA tienen presupuesto en la campaña activa (si no, el alta
+// pisaría el existente y además chocaría con el UNIQUE de la tabla).
+const cultivosDisponibles = computed(() => {
+  const conPresupuesto = new Set(proyCampania.value.map(p => p.cultivo))
+  return cultivosCatalogo.value.filter(c => !conPresupuesto.has(c.nombre))
+})
+function abrirNuevo() { nuevoCultivo.value = ''; errorGuardar.value = ''; nuevoOpen.value = true }
+function crearPresupuesto() {
+  const c = cultivosDisponibles.value.find(x => x.nombre === nuevoCultivo.value)
+  if (!c) return
+  editProy.value = {
+    cultivo: c.nombre,
+    campana: store.campania,
+    tipo: c.tipo || 'estival',
+    rendimientoQq: parseFloat(c.rendimientoQq) || 0,
+    precioVentaTn: parseFloat(c.precioVentaTn) || 0,
+    itemsCosto: [], etapas: [], ordenarCat: true,
+  }
+  nuevoOpen.value = false
+}
+
+const guardando    = ref(false)
+const errorGuardar = ref('')
+function cerrarEditor() { editProy.value = null; errorGuardar.value = '' }
+async function onSaveProy(f) {
+  guardando.value = true; errorGuardar.value = ''
+  try {
+    await store.updProy(editProy.value.cultivo, { ...f, campana: editProy.value.campana || store.campania })
+    cerrarEditor()
+  } catch (e) {
+    errorGuardar.value = /duplicate key|unique/i.test(e?.message || '')
+      ? `Ya existe un presupuesto de ${editProy.value.cultivo} en ${store.campania}.`
+      : (e?.message || 'No se pudo guardar el presupuesto.')
+  } finally { guardando.value = false }
+}
 </script>

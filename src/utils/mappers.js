@@ -12,7 +12,10 @@ export const loteFromDb = r => ({
   cultivoInvernal: r.cultivo_invernal, cultivoEstival: r.cultivo_estival,
 })
 
-export const proyToDb = (p, campana = '2024/25') => ({
+// `campana` es obligatoria: la tabla tiene UNIQUE(user_id, cultivo, campana). El
+// fallback lo decide quien llama (nunca una campaña fija acá, que etiquetaría
+// presupuestos nuevos en una campaña vieja).
+export const proyToDb = (p, campana) => ({
   cultivo: p.cultivo,
   campana: p.campana || campana,
   datos: {
