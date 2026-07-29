@@ -122,6 +122,10 @@
             <button v-if="verPrecios" @click="excelProy(d)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
               ⬇ Excel
             </button>
+            <button v-if="puedeEditar" @click="pedirBorrarProy(d.proy)" title="Eliminar presupuesto"
+              style="padding:6px 10px;border-radius:7px;border:1px solid #fecaca;background:#fff1f2;color:#dc2626;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
+              ×
+            </button>
           </div>
 
           <div v-if="abiertos.has(d.cultivo)" style="margin-top:10px;overflow-x:auto;border:1px solid #f0ede8;border-radius:8px">
@@ -242,6 +246,23 @@
         <div class="row justify-end q-gutter-sm q-mt-md">
           <q-btn flat label="Cancelar" @click="nuevoOpen=false"/>
           <q-btn unelevated color="primary" label="Crear presupuesto" :disable="!puedeCrear" @click="crearPresupuesto"/>
+        </div>
+      </q-card>
+    </q-dialog>
+
+    <!-- Confirmar eliminación -->
+    <q-dialog v-if="borrarProy" :model-value="true" @hide="borrarProy=null">
+      <q-card style="width:400px;max-width:95vw;border-radius:12px;padding:26px;text-align:center">
+        <q-icon name="warning" color="negative" size="26px"/>
+        <p style="font-size:15px;font-weight:700;margin:8px 0 6px">Eliminar presupuesto</p>
+        <p style="font-size:13px;color:#6b7280;margin:0 0 6px">
+          ¿Seguro que querés eliminar el presupuesto de <b>{{ borrarProy.cultivo }}</b> en <b>{{ store.campania }}</b>?
+        </p>
+        <p style="font-size:12px;color:#9ca3af;margin:0 0 18px">Se pierden sus ítems de costo y etapas. Esta acción no se puede deshacer.</p>
+        <p v-if="errorBorrar" style="font-size:12px;color:#dc2626;margin:0 0 10px">{{ errorBorrar }}</p>
+        <div class="row justify-center q-gutter-sm">
+          <q-btn flat label="Cancelar" @click="borrarProy=null"/>
+          <q-btn unelevated color="negative" label="Eliminar" :loading="borrando" @click="confirmarBorrarProy"/>
         </div>
       </q-card>
     </q-dialog>
@@ -473,6 +494,20 @@ function crearPresupuesto() {
     }
   }
   nuevoOpen.value = false
+}
+
+// ── Eliminar presupuesto ──────────────────────────────────────────
+const borrarProy  = ref(null)
+const borrando    = ref(false)
+const errorBorrar = ref('')
+function pedirBorrarProy(p) { errorBorrar.value = ''; borrarProy.value = p }
+async function confirmarBorrarProy() {
+  borrando.value = true; errorBorrar.value = ''
+  try {
+    await store.delProy(borrarProy.value.id)
+    borrarProy.value = null
+  } catch (e) { errorBorrar.value = e?.message || 'No se pudo eliminar el presupuesto.' }
+  finally { borrando.value = false }
 }
 
 const guardando    = ref(false)

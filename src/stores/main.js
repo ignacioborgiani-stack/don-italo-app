@@ -356,6 +356,12 @@ export const useMainStore = defineStore('main', () => {
     }
   }
 
+  async function delProy(id) {
+    const { error } = await supabase.from('proyecciones').delete().eq('id', id)
+    if (error) throw error
+    proyecciones.value = proyecciones.value.filter(p => p.id !== id)
+  }
+
   // ── Stocks ────────────────────────────────────────────────────
   async function addStock(s) {
     const userId = getOwnerId()
@@ -536,7 +542,7 @@ export const useMainStore = defineStore('main', () => {
     setTipoCambio, refrescarTipoCambio, usarTipoCambioBna,
     addLote, updLote, delLote,
     loadAsignaciones, addAsignacion, updAsignacion, delAsignacion,
-    updProy,
+    updProy, delProy,
     addStock, updStock, delStock, moveStock,
     loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
     loadContratosAlquiler, contratosDeLote, contratoVigente, addContratoAlquiler, updContratoAlquiler, delContratoAlquiler,
