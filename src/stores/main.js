@@ -5,6 +5,7 @@ import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
 import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb, contratoAlquilerToDb, contratoAlquilerFromDb } from '../utils/mappers'
 import { costoFijoAnualUsd } from '../utils/calculations'
+import { fetchDolarOficialBNA } from '../utils/tipoCambio'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
 import { useGranjaStore } from './granja'
@@ -27,7 +28,15 @@ export const useMainStore = defineStore('main', () => {
   const campania     = ref('2024/25')
   const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
   const campanasRows = ref([])   // filas completas {id, nombre} para resolver campana_id
-  const tipoCambio   = ref(1000)   // ARS por USD (para insumos cotizados en ARS)
+  // Tipo de cambio: ARS por USD (para insumos/costos cotizados en ARS).
+  // `tipoCambio` es el valor EFECTIVO que usan los cálculos: el del BNA, salvo
+  // que el usuario lo haya sobreescrito a mano (tipoCambioManual = true).
+  const tipoCambio            = ref(1000)
+  const tipoCambioBna         = ref(null)   // último valor traído de la API (referencia)
+  const tipoCambioManual      = ref(false)  // true = el usuario fijó el valor a mano
+  const tipoCambioActualizado = ref('')     // ISO de la última actualización
+  const tipoCambioCargando    = ref(false)
+  const tipoCambioError       = ref('')
   const lotes        = ref([])
   const asignaciones = ref([])   // asignaciones_campana (lote ↔ campaña ↔ cultivo + costos)
   const proyecciones = ref([])
@@ -76,7 +85,10 @@ export const useMainStore = defineStore('main', () => {
       proyecciones.value = (pr.data || []).map(proyFromDb)
       stocks.value       = (sr.data || []).map(stFromDb)
       apiKey.value       = cr.data?.find(c => c.clave === 'apiKey')?.valor || ''
+      leerTipoCambioConfig(cr.data || [])
       sbConnected.value  = true
+      // Cotización del BNA: si la API falla, queda el valor guardado en `configuracion`.
+      refrescarTipoCambio()
       // Tablas opcionales: si aún no se corrió la migración, no deben romper la carga principal
       try { await useCatalogoStore().loadCatalogo() } catch (e) { console.warn('[catalogo] tabla no disponible:', e?.message) }
       try { await useCatalogoStore().loadCultivos() } catch (e) { console.warn('[catalogo_cultivos] tabla no disponible:', e?.message) }
@@ -259,6 +271,8 @@ export const useMainStore = defineStore('main', () => {
     lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
     costosFijos.value = []; contratosAlquiler.value = []; campanasRows.value = []
     chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
+    tipoCambioBna.value = null; tipoCambioManual.value = false
+    tipoCambioActualizado.value = ''; tipoCambioError.value = ''
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
     useCatalogoStore().reset()
     useLotesMaestroStore().reset()
@@ -438,13 +452,78 @@ export const useMainStore = defineStore('main', () => {
   }
 
   function setCampania(c) { campania.value = c }
-  function setTipoCambio(v) { tipoCambio.value = parseFloat(v) || tipoCambio.value }
+
+  // ── Tipo de cambio (dólar oficial BNA) ────────────────────────
+  // Lee lo guardado en `configuracion`. Es el fallback si la API no responde.
+  function leerTipoCambioConfig(filas) {
+    const val = k => filas.find(c => c.clave === k)?.valor
+    const guardado = parseFloat(val('tipoCambio'))
+    if (guardado > 0) tipoCambio.value = guardado
+    tipoCambioManual.value      = val('tipoCambioManual') === 'true'
+    tipoCambioActualizado.value = val('tipoCambioActualizado') || ''
+  }
+
+  async function guardarTipoCambioConfig() {
+    const userId = getUid()
+    if (!userId) return
+    const filas = [
+      { user_id: userId, clave: 'tipoCambio',            valor: String(tipoCambio.value) },
+      { user_id: userId, clave: 'tipoCambioManual',      valor: String(tipoCambioManual.value) },
+      { user_id: userId, clave: 'tipoCambioActualizado', valor: tipoCambioActualizado.value || '' },
+    ]
+    const { error } = await supabase.from('configuracion').upsert(filas, { onConflict: 'user_id,clave' })
+    if (error) console.warn('[tipoCambio] no se pudo guardar:', error.message)
+  }
+
+  // Consulta el dólar oficial del Banco Nación. Si hay override manual sólo
+  // guarda el valor del BNA como referencia, sin pisar el del usuario.
+  async function refrescarTipoCambio() {
+    tipoCambioCargando.value = true
+    tipoCambioError.value = ''
+    try {
+      const { valor, actualizado } = await fetchDolarOficialBNA()
+      tipoCambioBna.value = valor
+      if (!tipoCambioManual.value) {
+        tipoCambio.value = valor
+        tipoCambioActualizado.value = actualizado
+        await guardarTipoCambioConfig()
+      }
+    } catch (e) {
+      tipoCambioError.value = e?.message || 'No se pudo consultar el Banco Nación'
+      console.warn('[tipoCambio] usando el valor guardado:', tipoCambioError.value)
+    } finally {
+      tipoCambioCargando.value = false
+    }
+  }
+
+  // Override manual: queda fijo hasta que el usuario vuelva al valor del BNA.
+  async function setTipoCambio(v) {
+    const n = parseFloat(v)
+    if (!(n > 0)) return
+    tipoCambio.value = n
+    tipoCambioManual.value = true
+    tipoCambioActualizado.value = new Date().toISOString()
+    await guardarTipoCambioConfig()
+  }
+
+  async function usarTipoCambioBna() {
+    tipoCambioManual.value = false
+    if (tipoCambioBna.value) {
+      tipoCambio.value = tipoCambioBna.value
+      tipoCambioActualizado.value = new Date().toISOString()
+      await guardarTipoCambioConfig()
+    } else {
+      await refrescarTipoCambio()
+    }
+  }
 
   return {
-    sbConnected, campania, campanas, campanasRows, tipoCambio, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler, chatMessages, apiKey,
+    sbConnected, campania, campanas, campanasRows, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler, chatMessages, apiKey,
+    tipoCambio, tipoCambioBna, tipoCambioManual, tipoCambioActualizado, tipoCambioCargando, tipoCambioError,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,
     loadData, reloadDatos, cargarDatosDemo, resetData,
-    loadCampanas, addCampana, delCampana, setTipoCambio,
+    loadCampanas, addCampana, delCampana,
+    setTipoCambio, refrescarTipoCambio, usarTipoCambioBna,
     addLote, updLote, delLote,
     loadAsignaciones, addAsignacion, updAsignacion, delAsignacion,
     updProy,

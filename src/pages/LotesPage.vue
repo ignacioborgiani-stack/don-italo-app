@@ -62,6 +62,8 @@
       <ResultadoNetoCard :bruto="totM" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto contable de la campaña"/>
     </div>
 
+    <CostosFijosSection v-if="verPrecios"/>
+
     <!-- Detalle -->
     <q-dialog v-if="verRow" :model-value="true" @hide="verRow=null">
       <q-card style="width:640px;max-width:95vw;border-radius:14px;padding:28px">
@@ -207,6 +209,7 @@ import AsignarLoteForm from '../components/AsignarLoteForm.vue'
 import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
+import CostosFijosSection from '../components/CostosFijosSection.vue'
 import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'

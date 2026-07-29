@@ -105,6 +105,8 @@
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Comparativa margen bruto proyectado (USD/ha)</h3>
         <SvgHBar :data="barData" :height="250"/>
       </div>
+
+      <CostosFijosSection/>
     </template>
 
     <!-- Edit proy modal -->
@@ -128,6 +130,7 @@ import { useCatalogoStore } from '../stores/catalogo'
 import { useGranjaStore } from '../stores/granja'
 import SvgHBar from '../components/charts/SvgHBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
+import CostosFijosSection from '../components/CostosFijosSection.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, indicadoresCultivo } from '../utils/calculations'
