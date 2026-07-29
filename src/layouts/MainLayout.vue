@@ -297,15 +297,14 @@ const TABS = [
   { name: 'lotes',       label: 'Costos Contables',   e: '📒', path: '/lotes',         modulo: 'costos_contables' },
   { name: 'proyectados', label: 'Costos Proyectados', e: '📈', path: '/proyectados',   modulo: 'costos_proyectados' },
   { name: 'stocks',      label: 'Stocks',             e: '📦', path: '/stocks',        modulo: 'stocks' },
-  { name: 'chat',        label: 'Chat IA',            e: '🤖', path: '/chat',          modulo: null }, // solo dueño
 ]
 
-// El dueño ve todas; un miembro sólo los módulos habilitados (chat = solo dueño).
+// El dueño ve todas; un miembro sólo los módulos habilitados.
 const visibleTabs = computed(() => granja.esPropietarioActivo
   ? TABS
   : TABS.filter(t => t.modulo && granja.puedeVer(t.modulo)))
 
-const pathToName = { '/': 'dashboard', '/lotes-maestro': 'lotesMaestro', '/catalogo': 'catalogo', '/lotes': 'lotes', '/proyectados': 'proyectados', '/stocks': 'stocks', '/chat': 'chat' }
+const pathToName = { '/': 'dashboard', '/lotes-maestro': 'lotesMaestro', '/catalogo': 'catalogo', '/lotes': 'lotes', '/proyectados': 'proyectados', '/stocks': 'stocks' }
 const activeTab  = computed(() => pathToName[route.path] || 'dashboard')
 
 function onTab(name) {

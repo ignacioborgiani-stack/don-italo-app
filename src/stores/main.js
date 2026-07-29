@@ -43,8 +43,6 @@ export const useMainStore = defineStore('main', () => {
   const stocks       = ref([])
   const costosFijos  = ref([])   // costos_fijos de estructura (por campaña)
   const contratosAlquiler = ref([])   // contratos de alquiler por lote+campaña
-  const chatMessages = ref([])
-  const apiKey       = ref('')
 
   // id de la campaña activa (para costos_fijos.campana_id)
   const campanaIdActiva = computed(() => campanasRows.value.find(c => c.nombre === campania.value)?.id || null)
@@ -84,7 +82,6 @@ export const useMainStore = defineStore('main', () => {
       lotes.value        = (lr.data || []).map(loteFromDb)
       proyecciones.value = (pr.data || []).map(proyFromDb)
       stocks.value       = (sr.data || []).map(stFromDb)
-      apiKey.value       = cr.data?.find(c => c.clave === 'apiKey')?.valor || ''
       leerTipoCambioConfig(cr.data || [])
       sbConnected.value  = true
       // Cotización del BNA: si la API falla, queda el valor guardado en `configuracion`.
@@ -271,7 +268,7 @@ export const useMainStore = defineStore('main', () => {
   function resetData() {
     lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
     costosFijos.value = []; contratosAlquiler.value = []; campanasRows.value = []
-    chatMessages.value = []; apiKey.value = ''; sbConnected.value = false
+    sbConnected.value = false
     tipoCambioBna.value = null; tipoCambioManual.value = false
     tipoCambioActualizado.value = ''; tipoCambioError.value = ''
     campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
@@ -467,15 +464,6 @@ export const useMainStore = defineStore('main', () => {
     }
   }
 
-  // ── Chat / API Key ────────────────────────────────────────────
-  function addMsg(m) { chatMessages.value = [...chatMessages.value, { ...m, id: uid() }] }
-
-  async function setApiKey(k) {
-    const userId = getUid()
-    apiKey.value = k
-    await supabase.from('configuracion').upsert({ user_id: userId, clave: 'apiKey', valor: k })
-  }
-
   function setCampania(c) { campania.value = c }
 
   // ── Tipo de cambio (dólar oficial BNA) ────────────────────────
@@ -543,7 +531,7 @@ export const useMainStore = defineStore('main', () => {
   }
 
   return {
-    sbConnected, campania, campanas, campanasRows, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler, chatMessages, apiKey,
+    sbConnected, campania, campanas, campanasRows, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler,
     tipoCambio, tipoCambioBna, tipoCambioManual, tipoCambioActualizado, tipoCambioCargando, tipoCambioError,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,
     loadData, reloadDatos, cargarDatosDemo, resetData,
@@ -555,6 +543,6 @@ export const useMainStore = defineStore('main', () => {
     addStock, updStock, delStock, moveStock,
     loadCostosFijos, addCostoFijo, updCostoFijo, delCostoFijo, copiarCostosFijosDeAnterior,
     loadContratosAlquiler, contratosDeLote, contratoVigente, addContratoAlquiler, updContratoAlquiler, delContratoAlquiler,
-    addMsg, setApiKey, setCampania,
+    setCampania,
   }
 })

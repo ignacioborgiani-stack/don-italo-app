@@ -21,8 +21,10 @@ export default [
       { path: 'lotes',       component: () => import('../pages/LotesPage.vue') },
       { path: 'proyectados', component: () => import('../pages/ProyectadosPage.vue') },
       { path: 'stocks',      component: () => import('../pages/StocksPage.vue') },
-      { path: 'chat',        component: () => import('../pages/ChatPage.vue') },
       { path: 'granja',      component: () => import('../pages/GranjaPage.vue') },
     ],
   },
+  // Cualquier ruta desconocida va al Dashboard. Cubre los links viejos a
+  // /chat (módulo eliminado), que si no quedarían en blanco.
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ]

@@ -57,8 +57,7 @@ don-italo-vue/
 │   │   ├── LotesPage.vue        ← tabla de costos contables por campaña
 │   │   ├── ProyectadosPage.vue  ← costos proyectados por cultivo
 │   │   ├── ProyForm.vue         ← formulario de proyección (ítems de costo)
-│   │   ├── StocksPage.vue       ← inventario de insumos con filtros
-│   │   └── ChatPage.vue         ← chat con IA (Anthropic API, clave por usuario)
+│   │   └── StocksPage.vue       ← inventario de insumos con filtros
 │   ├── router/
 │   │   ├── index.js             ← router + guard de navegación
 │   │   └── routes.js            ← definición de rutas
@@ -188,8 +187,6 @@ MainLayout (navbar)
 | `lotes` | `ref([])` | Array de lotes del usuario |
 | `proyecciones` | `ref([])` | Array de proyecciones por cultivo |
 | `stocks` | `ref([])` | Array de insumos/stocks |
-| `chatMessages` | `ref([])` | Historial de mensajes del chat IA (solo en memoria) |
-| `apiKey` | `ref('')` | Clave Anthropic del usuario (leída desde `configuracion`) |
 
 ### Helper interno
 ```js
@@ -202,7 +199,7 @@ Todos los inserts usan `getUid()` internamente — las páginas no necesitan pas
 #### Inicialización
 | Función | Descripción |
 |---|---|
-| `loadData()` | Carga lotes, proyecciones, stocks y apiKey en paralelo. Setea `sbConnected`. Llamada post-login |
+| `loadData()` | Carga lotes, proyecciones, stocks y configuración en paralelo. Setea `sbConnected`. Llamada post-login |
 | `cargarDatosDemo()` | Inserta MOCK_LOTES, MOCK_PROYECCIONES y MOCK_STOCKS con `user_id`. Luego llama `loadData()` |
 | `resetData()` | Limpia todo el estado (usado en logout) |
 
@@ -226,11 +223,9 @@ Todos los inserts usan `getUid()` internamente — las páginas no necesitan pas
 | `delStock` | `(id)` | DELETE en DB + filtra del array |
 | `moveStock` | `(id, nuevaUbic, cant, nota)` | Registra movimiento. Si cant ≥ stock existente: mueve todo. Si cant < stock: divide en dos registros (el original queda con la diferencia, se crea uno nuevo en la nueva ubicación) |
 
-#### Chat y configuración
+#### Configuración
 | Función | Signatura | Descripción |
 |---|---|---|
-| `addMsg` | `(msg)` | Agrega mensaje al historial en memoria con UUID |
-| `setApiKey` | `(key)` | Guarda en estado + upsert en tabla `configuracion` con clave `'apiKey'` |
 | `setCampania` | `(campana)` | Cambia la campaña activa globalmente |
 
 ---
@@ -299,7 +294,6 @@ MOCK_STOCKS             // 6 insumos de ejemplo
 | `/lotes` | `LotesPage.vue` | Privada |
 | `/proyectados` | `ProyectadosPage.vue` | Privada |
 | `/stocks` | `StocksPage.vue` | Privada |
-| `/chat` | `ChatPage.vue` | Privada |
 
 ### Navigation guard (`index.js`)
 ```js
