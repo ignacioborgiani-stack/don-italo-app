@@ -132,8 +132,20 @@ async function send() {
   }
 }
 
+// La respuesta del modelo se renderiza con v-html, así que hay que ESCAPARLA
+// antes de agregar nuestro propio markup. Sin esto, un `<img src=x onerror=…>`
+// devuelto por el modelo (por ejemplo por una inyección de prompt dentro de la
+// foto de una factura) se ejecuta y puede robar la sesión de Supabase y la
+// API key. Escapar primero y recién después aplicar el markdown.
+const escapeHtml = t => String(t ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+
 function md(t) {
-  return t
+  return escapeHtml(t)
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
     .replace(/`(.*?)`/g, '<code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:12px">$1</code>')
     .replace(/\n/g, '<br>')

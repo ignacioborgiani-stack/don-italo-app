@@ -6,6 +6,13 @@ import { granjaToDb, granjaFromDb, miembroFromDb } from '../utils/mappers'
 
 const uid = () => crypto.randomUUID()
 
+// Errores que puede levantar la RPC aceptar_invitacion (migración 14).
+const ERR_INVITACION = {
+  no_autenticado:        'Tenés que iniciar sesión para responder la invitación.',
+  invitacion_inexistente:'La invitación ya no existe (puede haberla cancelado el propietario).',
+  invitacion_ajena:      'Esa invitación no es tuya.',
+}
+
 // Módulos sobre los que se asignan permisos.
 export const MODULOS = [
   { key: 'dashboard',          label: 'Dashboard',          costos: false },
@@ -158,14 +165,23 @@ export const useGranjaStore = defineStore('granja', () => {
   }
 
   // ── Invitado: aceptar / rechazar ───────────────────────────────
+  // Va por RPC (SECURITY DEFINER): el invitado NO tiene UPDATE directo sobre
+  // granja_miembros, porque con eso podía reescribir granja_id (mudarse a otra
+  // granja llevándose sus permisos) o user_id (regalar su acceso a otra cuenta).
+  // La función sólo toca estado / user_id / aceptado_en. Requiere migración 14.
   async function responderInvitacion(id, aceptar) {
-    const patch = aceptar
-      ? { estado: 'aceptado', user_id: miId(), aceptado_en: new Date().toISOString() }
-      : { estado: 'rechazado' }
+    // La función devuelve UN registro compuesto (no SETOF): `data` ya es el
+    // objeto de la fila, sin `.single()`.
     const { data, error } = await supabase
-      .from('granja_miembros').update(patch).eq('id', id).select('*, granjas(nombre, propietario_id)').single()
-    if (error) throw error
-    invitaciones.value = invitaciones.value.map(i => i.id === id ? miembroFromDb(data) : i)
+      .rpc('aceptar_invitacion', { _miembro_id: id, _aceptar: !!aceptar })
+    if (error) throw new Error(ERR_INVITACION[error.message?.match(/invitacion_\w+|no_autenticado/)?.[0]] || error.message)
+    const fila = Array.isArray(data) ? data[0] : data
+    if (!fila) throw new Error('No se pudo actualizar la invitación.')
+    // La RPC devuelve la fila sin el join de `granjas`: se conservan los datos
+    // de la granja que ya tenía la invitación cargada.
+    invitaciones.value = invitaciones.value.map(i => i.id === id
+      ? { ...i, ...miembroFromDb(fila), granjaNombre: i.granjaNombre, granjaPropietarioId: i.granjaPropietarioId }
+      : i)
   }
 
   // ── Propietario: permisos por miembro ──────────────────────────

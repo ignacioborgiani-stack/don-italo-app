@@ -419,8 +419,17 @@ export const useMainStore = defineStore('main', () => {
     }
   }
 
+  // El rastro de auditoría va con el user_id del DUEÑO del contexto activo: si se
+  // grabara con el uid del miembro, el dueño nunca vería los movimientos que
+  // hicieron sus invitados (justo en la tabla que existe para auditar).
+  // Requiere las políticas gm_mov_* de la migración 14.
+  async function registrarMovimiento(fila) {
+    const { error } = await supabase.from('movimientos').insert({ ...fila, user_id: getOwnerId() })
+    if (error) console.warn('[movimientos] no se pudo registrar el movimiento:', error.message)
+  }
+
   async function moveStock(id, newU, cant, nota, loteDestino) {
-    const userId = getUid()
+    const userId = getOwnerId()
     const it = stocks.value.find(i => i.id === id)
     if (!it) return
     const n = parseFloat(cant) || 0
@@ -429,8 +438,8 @@ export const useMainStore = defineStore('main', () => {
     if (newU === 'aplicado') {
       const ok = await aplicarEnLote(it, campania.value, n, loteDestino)
       if (!ok) throw new Error('No se encontró el lote asignado en la campaña activa')
-      supabase.from('movimientos').insert({
-        user_id: userId, tipo: 'aplicacion', stock_id: id,
+      await registrarMovimiento({
+        tipo: 'aplicacion', stock_id: id,
         insumo_nombre: it.nombre, cantidad: n, unidad: it.unidad,
         lote_nombre: loteDestino || it.lote, tipo_aplicacion: 'campo',
         costo_total_ars: n * (parseFloat(it.precioUnitario) || 0),
@@ -440,8 +449,8 @@ export const useMainStore = defineStore('main', () => {
       return
     }
 
-    supabase.from('movimientos').insert({
-      user_id: userId, tipo: 'traslado', stock_id: id,
+    await registrarMovimiento({
+      tipo: 'traslado', stock_id: id,
       insumo_nombre: it.nombre, cantidad: n, unidad: it.unidad,
       costo_total_ars: n * (parseFloat(it.precioUnitario) || 0),
     })
