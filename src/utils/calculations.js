@@ -23,7 +23,11 @@ export const LABOR_CATEGORIA_MAP = {
   labor:   ['Aplicación', 'Labranza'],
 }
 // Categorías que se resuelven como ítem especial manual (no catálogo).
-export const CATEGORIAS_ESPECIALES = ['arrendamiento', 'seguro']
+export const CATEGORIAS_ESPECIALES = ['arrendamiento', 'seguro', 'comercializacion']
+
+// Valores típicos de comercialización, precargados al elegir la categoría.
+// Son SUGERENCIAS: el usuario los edita libremente en cada ítem.
+export const COMERCIALIZACION_DEFAULT = { porcCorredor: 0.5, porcSellado: 0.07, arsPorTn: 850 }
 
 // ── Orden y agrupación de ítems de costo ──────────────────────────
 
@@ -31,7 +35,7 @@ export const CATEGORIAS_ESPECIALES = ['arrendamiento', 'seguro']
 // editor y el orden de las porciones en el gráfico de torta.
 export const ORDEN_CATEGORIA = [
   'semilla', 'inoculante', 'fertilizante', 'fitosanitario',
-  'labor', 'seguro', 'flete', 'cosecha', 'arrendamiento', 'otros',
+  'labor', 'seguro', 'flete', 'cosecha', 'comercializacion', 'arrendamiento', 'otros',
 ]
 const ordenCatIdx = cat => {
   const i = ORDEN_CATEGORIA.indexOf(cat)
@@ -43,7 +47,7 @@ const CATEGORIA_LABEL = Object.fromEntries(CATEGORIAS.map(c => [c.key, c.label])
 export const CATEGORIA_COLOR = {
   semilla: '#4a7c59', inoculante: '#82b366', fertilizante: '#e8a838',
   fitosanitario: '#5b8dd9', labor: '#c4893a', cosecha: '#d4a017',
-  flete: '#8b5cf6', seguro: '#14b8a6', arrendamiento: '#d44f8e', otros: '#9ca3af',
+  flete: '#8b5cf6', seguro: '#14b8a6', comercializacion: '#0ea5e9', arrendamiento: '#d44f8e', otros: '#9ca3af',
 }
 
 // Ordena los ítems de costo por categoría (orden agronómico fijo). Es un orden
@@ -157,6 +161,17 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
         return tiene('porcentaje') ? (parseFloat(p.porcentaje) || 0) / 100 * rendTn * precioVenta : legacy
       }
       return tiene('valor') ? (parseFloat(p.valor) || 0) : legacy   // usd_ha (default)
+    }
+    if (item.categoria === 'comercializacion') {
+      // Gastos de venta del grano. Los dos porcentajes se aplican sobre el valor
+      // vendido (USD/tn) y el representante entregador es un monto fijo en ARS
+      // por tonelada, que se pasa a USD con el tipo de cambio del BNA:
+      //   [(%corredor + %sellado)/100 × precioTn + arsPorTn/tipoCambio] × rinde(tn/ha)
+      if (!tiene('porcCorredor') && !tiene('porcSellado') && !tiene('arsPorTn')) return legacy
+      const tc = parseFloat(tipoCambio) || 1
+      const porc = ((parseFloat(p.porcCorredor) || 0) + (parseFloat(p.porcSellado) || 0)) / 100
+      const usdPorTn = porc * precioVenta + (parseFloat(p.arsPorTn) || 0) / tc
+      return usdPorTn * rendTn
     }
     if (item.categoria === 'seguro') {
       // % de la prima × precio de mercado del cultivo (USD/tn) × rinde asegurado (tn/ha)

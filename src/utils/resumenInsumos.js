@@ -17,6 +17,7 @@ export function unidadItem(it, ctx) {
   if (it.modoEspecial) {
     const p = it.parametroEspecial || {}
     if (it.categoria === 'seguro') return p.modalidad === 'porcentaje' ? '% + rinde aseg.' : 'USD/ha'
+    if (it.categoria === 'comercializacion') return '% s/venta + ARS/tn'
     return p.modalidad === 'usd_ha' ? 'USD/ha' : p.modalidad === 'qq_soja' ? 'qq soja/ha' : '% grano'
   }
   return ''
@@ -31,6 +32,11 @@ export function cantidadItem(it, ctx) {
   if (it.modoEspecial) {
     const p = it.parametroEspecial || {}
     if (it.categoria === 'seguro') return Number((p.modalidad === 'porcentaje' ? p.porcentaje : p.valor) ?? 0)
+    // Comercialización se compone de 3 parámetros: se informa el % total sobre
+    // la venta (el ARS/tn del representante no es comparable en la columna).
+    if (it.categoria === 'comercializacion') {
+      return Number(((parseFloat(p.porcCorredor) || 0) + (parseFloat(p.porcSellado) || 0)).toFixed(4))
+    }
     return Number((p.modalidad === 'porc_grano' ? p.porcentaje : p.valor) ?? 0)
   }
   if (it.insumoId || it.laborId) return Number(it.dosis ?? 0)
@@ -90,7 +96,7 @@ function filaExcel(f, { conLote = false } = {}) {
 }
 
 // ── Agrupación y orden ────────────────────────────────────────────
-const ORDEN_CAT = ['semilla', 'inoculante', 'fertilizante', 'fitosanitario', 'labor', 'seguro', 'flete', 'cosecha', 'arrendamiento', 'otros']
+const ORDEN_CAT = ['semilla', 'inoculante', 'fertilizante', 'fitosanitario', 'labor', 'seguro', 'flete', 'cosecha', 'comercializacion', 'arrendamiento', 'otros']
 const ordenCat = c => { const i = ORDEN_CAT.indexOf((c || '').toLowerCase()); return i === -1 ? ORDEN_CAT.length : i }
 const r2 = n => Math.round((parseFloat(n) || 0) * 100) / 100
 
@@ -124,7 +130,8 @@ export function agrupar(filas, ha, { conLote = false } = {}) {
 export const LABEL_CATEGORIA = {
   semilla: 'Semillas', inoculante: 'Inoculantes', fertilizante: 'Fertilizantes',
   fitosanitario: 'Fitosanitarios', labor: 'Labores', seguro: 'Seguro',
-  flete: 'Flete', cosecha: 'Cosecha', arrendamiento: 'Arrendamiento', otros: 'Otros',
+  flete: 'Flete', cosecha: 'Cosecha', comercializacion: 'Comercialización',
+  arrendamiento: 'Arrendamiento', otros: 'Otros',
 }
 
 // Agrupa (con agrupar) y arma secciones por categoría para mostrar en pantalla.

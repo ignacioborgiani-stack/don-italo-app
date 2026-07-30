@@ -29,6 +29,7 @@ export const CATEGORIAS = [
   { key: 'cosecha',       label: 'Cosecha',        e: '🌾' },
   { key: 'flete',         label: 'Flete',          e: '🚛' },
   { key: 'seguro',        label: 'Seguro',         e: '🛡️' },
+  { key: 'comercializacion', label: 'Comercialización', e: '🧾' },
   { key: 'arrendamiento', label: 'Arrendamiento',  e: '🏠' },
   { key: 'otros',         label: 'Otros',          e: '📋' },
 ]

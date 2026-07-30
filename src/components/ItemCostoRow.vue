@@ -39,6 +39,21 @@
         <div v-else style="flex:1;min-width:20px"/>
       </template>
 
+      <!-- ── COMERCIALIZACIÓN (especial: % corredor + % sellado + ARS/tn) ── -->
+      <!-- Los 3 campos editables van en la Fila 2 (abajo), para que la fila
+           principal no se amontone. Acá va el resumen de lo cargado. -->
+      <template v-else-if="item.categoria==='comercializacion'">
+        <div class="di-col-prod" style="flex:1;min-width:140px;padding-top:6px">
+          <span style="font-size:11px;color:#6b7280">
+            {{ fmtPorc(param.porcCorredor) }}% corredor + {{ fmtPorc(param.porcSellado) }}% sellado
+            + {{ fmtNum(param.arsPorTn) }} ARS/tn
+          </span>
+          <div style="font-size:10px;color:#9ca3af;margin-top:2px">
+            sobre {{ fmtUSD(precioVentaTn) }}/tn × {{ fmtNum(rendTnHa) }} tn/ha · TC {{ fmtNum(tipoCambio) }}
+          </div>
+        </div>
+      </template>
+
       <!-- ── LABORES (cosecha / flete / labor) ── -->
       <template v-else-if="esLabor">
         <div class="di-col-prod" style="flex:1;min-width:140px">
@@ -87,11 +102,28 @@
 
       <!-- Costo calculado -->
       <div class="di-col-costo" style="width:84px;flex-shrink:0;text-align:right;padding-top:5px">
-        <b style="color:#2d5a27;font-size:13px">{{ fmtUSD(costo) }}</b>
+        <b style="color:#2d5a27;font-size:13px">{{ fmtCosto(costo) }}</b>
         <div style="font-size:10px;color:#9ca3af">USD/ha</div>
       </div>
 
       <button @click="$emit('remove')" style="background:#fff1f2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;color:#dc2626;font-size:14px;width:26px;height:26px;flex-shrink:0">×</button>
+    </div>
+
+    <!-- Fila 2: Comercialización → los 3 componentes, todos editables -->
+    <div v-if="item.categoria==='comercializacion'" class="di-fila"
+      style="display:flex;gap:12px;margin-top:8px;padding-left:32px;flex-wrap:wrap">
+      <div class="di-col-num" style="flex:0 0 130px">
+        <input type="number" step="any" :value="param.porcCorredor" @input="onParam('porcCorredor',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="0.50"/>
+        <span style="font-size:10px;color:#9ca3af">% corredor</span>
+      </div>
+      <div class="di-col-num" style="flex:0 0 130px">
+        <input type="number" step="any" :value="param.porcSellado" @input="onParam('porcSellado',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="0.07"/>
+        <span style="font-size:10px;color:#9ca3af">% sellado bolsa</span>
+      </div>
+      <div class="di-col-num" style="flex:0 0 160px">
+        <input type="number" step="any" :value="param.arsPorTn" @input="onParam('arsPorTn',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="850"/>
+        <span style="font-size:10px;color:#9ca3af">ARS/tn representante</span>
+      </div>
     </div>
 
     <!-- Fila 2: Seguro % del valor asegurado → % prima + rinde asegurado, con espacio -->
@@ -113,7 +145,7 @@
 <script setup>
 import { computed } from 'vue'
 import { CATEGORIAS } from '../utils/constants'
-import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, unidadDosisInsumo, unidadDosisLabor, calcularCostoItemHa } from '../utils/calculations'
+import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, COMERCIALIZACION_DEFAULT, unidadDosisInsumo, unidadDosisLabor, calcularCostoItemHa } from '../utils/calculations'
 import { fmtUSD, fmtNum } from '../utils/formatters'
 
 const props = defineProps({
@@ -130,6 +162,16 @@ const emit = defineEmits(['update:item', 'remove', 'crear-insumo', 'crear-labor'
 
 const esLabor = computed(() => !!LABOR_CATEGORIA_MAP[props.item.categoria])
 const param = computed(() => props.item.parametroEspecial || {})
+// Rinde en tn/ha (el editor recibe qq/ha), para el detalle de comercialización.
+const rendTnHa = computed(() => (parseFloat(props.rendimientoQq) || 0) / 10)
+// Porcentajes con hasta 2 decimales: fmtNum redondea a 1 y mostraría 0,07 % como
+// 0,1 %, tergiversando el valor que cargó el usuario.
+const fmtPorc = n => Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })
+// En el editor, los ítems chicos (comercialización ~$11,50, seguro ~$24) pierden
+// información con 0 decimales; se muestran 2 debajo de $100.
+const fmtCosto = n => Math.abs(Number(n) || 0) < 100
+  ? '$' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  : fmtUSD(n)
 
 const insumoSel = computed(() => props.catalogo.find(i => i.id === props.item.insumoId) || null)
 const laborSel  = computed(() => props.labores.find(l => l.id === props.item.laborId) || null)
@@ -173,6 +215,8 @@ function onCategoria(cat) {
   const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', precioUnit: '', modoEspecial: false, parametroEspecial: null }
   if (cat === 'arrendamiento') { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'usd_ha', valor: 0, porcentaje: 0 } }
   else if (cat === 'seguro')   { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'monto_fijo', valor: 0, porcentaje: 0, rindeAsegurado: 0 } }
+  // Valores típicos como sugerencia; el usuario los edita libremente por ítem.
+  else if (cat === 'comercializacion') { patch.modoEspecial = true; patch.parametroEspecial = { ...COMERCIALIZACION_DEFAULT } }
   emitChange(patch)
 }
 function onProducto(val) {
@@ -225,7 +269,9 @@ function onParam(k, v) { emitChange({ parametroEspecial: { ...param.value, [k]: 
 @media (max-width: 560px) {
   .di-fila { gap: 8px 6px; }
   .di-fila > .di-col-prod { flex: 1 1 100% !important; min-width: 0 !important; }
-  .di-fila > .di-col-num  { flex: 1 1 calc(50% - 3px) !important; width: auto !important; }
+  /* -7px cubre tanto el gap de 6px de la fila principal como el de 12px de las
+     filas secundarias (seguro / comercialización): entran dos por línea. */
+  .di-fila > .di-col-num  { flex: 1 1 calc(50% - 7px) !important; width: auto !important; }
   .di-fila > .di-col-costo { flex: 1 1 auto; text-align: right; }
 }
 </style>
