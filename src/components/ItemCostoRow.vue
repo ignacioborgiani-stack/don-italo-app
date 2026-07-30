@@ -1,6 +1,6 @@
 <template>
   <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-bottom:6px;background:#fff">
-    <div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
+    <div class="di-fila" style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
       <!-- Tirador para arrastrar (reordena dentro de la categoría) -->
       <span class="di-drag-handle" title="Arrastrar para reordenar dentro de la categoría"
         style="cursor:grab;color:#cbd5e1;font-size:15px;line-height:28px;flex-shrink:0;user-select:none;touch-action:none">⠿</span>
@@ -41,7 +41,7 @@
 
       <!-- ── LABORES (cosecha / flete / labor) ── -->
       <template v-else-if="esLabor">
-        <div style="flex:1;min-width:140px">
+        <div class="di-col-prod" style="flex:1;min-width:140px">
           <select :value="item.laborId || ''" @change="onLabor($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px">
             <option value="">— Elegí una labor —</option>
             <option v-for="l in laboresFiltradas" :key="l.id" :value="l.id">{{ l.nombre }}</option>
@@ -50,23 +50,23 @@
           <span v-if="sinVincular" style="display:inline-block;margin-top:3px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:0 7px;font-size:10px;font-weight:600">Sin vincular: {{ item.nombreManual || item.nombre }} (${{ fmtNum(item.costoHaUsd) }}/ha)</span>
         </div>
         <!-- cantidad: % / pasadas / nada según la labor -->
-        <div v-if="laborSel && laborSel.esPorcentaje" style="width:88px;flex-shrink:0">
+        <div v-if="laborSel && laborSel.esPorcentaje" class="di-col-num" style="width:88px;flex-shrink:0">
           <input type="number" step="any" :value="item.dosis" @input="onDosis($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0"/>
           <span style="font-size:10px;color:#9ca3af">% del valor</span>
         </div>
-        <div v-else-if="laborSel && (laborSel.unidadPrecio==='ha'||laborSel.unidadPrecio==='viaje'||laborSel.unidadPrecio==='unidad')" style="width:88px;flex-shrink:0">
+        <div v-else-if="laborSel && (laborSel.unidadPrecio==='ha'||laborSel.unidadPrecio==='viaje'||laborSel.unidadPrecio==='unidad')" class="di-col-num" style="width:88px;flex-shrink:0">
           <input type="number" step="any" :value="item.dosis" @input="onDosis($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="1"/>
           <span style="font-size:10px;color:#9ca3af">{{ unidadDosisLabor(laborSel) }}</span>
         </div>
-        <div v-else-if="laborSel" style="width:88px;flex-shrink:0;padding-top:5px">
+        <div v-else-if="laborSel" class="di-col-num" style="width:88px;flex-shrink:0;padding-top:5px">
           <span style="font-size:10px;color:#9ca3af">{{ unidadDosisLabor(laborSel) }}</span>
         </div>
-        <div v-else style="width:88px;flex-shrink:0"/>
+        <div v-else class="di-col-num" style="width:88px;flex-shrink:0"/>
       </template>
 
       <!-- ── INSUMOS (semilla / fertilizante / fitosanitario / etc.) ── -->
       <template v-else>
-        <div style="flex:1;min-width:140px">
+        <div class="di-col-prod" style="flex:1;min-width:140px">
           <select :value="item.insumoId || ''" @change="onProducto($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px">
             <option value="">— Elegí un producto —</option>
             <option v-for="p in productos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
@@ -74,19 +74,19 @@
           </select>
           <span v-if="sinVincular" style="display:inline-block;margin-top:3px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:0 7px;font-size:10px;font-weight:600">Sin vincular: {{ item.nombreManual || item.nombre }} (${{ fmtNum(item.costoHaUsd) }}/ha)</span>
         </div>
-        <div style="width:88px;flex-shrink:0">
+        <div class="di-col-num" style="width:88px;flex-shrink:0">
           <input type="number" step="any" :value="item.dosis" @input="onDosis($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0" :disabled="!item.insumoId"/>
           <span style="font-size:10px;color:#9ca3af">{{ unidadLabel || 'dosis' }}</span>
         </div>
         <!-- Precio manual (Contables): sugerido del catálogo, editable, se congela -->
-        <div v-if="precioEditable && item.insumoId" style="width:88px;flex-shrink:0">
+        <div v-if="precioEditable && item.insumoId" class="di-col-num" style="width:88px;flex-shrink:0">
           <input type="number" step="any" :value="precioMostrado" @input="onPrecio($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0" title="Precio del insumo (editable para campañas históricas)"/>
           <span style="font-size:10px;color:#9ca3af">{{ precioLabel }}</span>
         </div>
       </template>
 
       <!-- Costo calculado -->
-      <div style="width:84px;flex-shrink:0;text-align:right;padding-top:5px">
+      <div class="di-col-costo" style="width:84px;flex-shrink:0;text-align:right;padding-top:5px">
         <b style="color:#2d5a27;font-size:13px">{{ fmtUSD(costo) }}</b>
         <div style="font-size:10px;color:#9ca3af">USD/ha</div>
       </div>
@@ -96,6 +96,7 @@
 
     <!-- Fila 2: Seguro % del valor asegurado → % prima + rinde asegurado, con espacio -->
     <div v-if="item.categoria==='seguro' && (param.modalidad||'monto_fijo')==='porcentaje'"
+      class="di-fila"
       style="display:flex;gap:12px;margin-top:8px;padding-left:32px;flex-wrap:wrap">
       <div style="flex:0 0 130px">
         <input type="number" step="any" :value="param.porcentaje" @input="onParam('porcentaje',$event.target.value)" class="di-inp" style="padding:5px 8px;font-size:12px;text-align:right" placeholder="0"/>
@@ -202,3 +203,29 @@ function onLabor(val) {
 function onDosis(val) { emitChange({ dosis: val }) }
 function onParam(k, v) { emitChange({ parametroEspecial: { ...param.value, [k]: v } }) }
 </script>
+
+<style scoped>
+/* La clase `di-inp` no tiene CSS global en el proyecto: sin esto los <input> y
+   <select> toman su ancho INTRÍNSECO del browser (~150px en un input number) e
+   ignoran el contenedor de 88px, desbordándose ~63px y tapando la columna
+   siguiente (dosis sobre el precio, o sobre el costo USD/ha en las labores).
+   Con width:100% + border-box cada campo queda dentro de su columna. */
+.di-fila input.di-inp,
+.di-fila select.di-inp {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Permite que flexbox encoja las columnas en vez de desbordarlas. */
+.di-fila > * { min-width: 0; }
+
+/* Mobile: stack predecible — el producto ocupa su propia línea completa, las
+   columnas numéricas (dosis y precio) van de dos en dos, y el costo cierra
+   abajo a la derecha. Así ningún campo se estira ni se solapa. */
+@media (max-width: 560px) {
+  .di-fila { gap: 8px 6px; }
+  .di-fila > .di-col-prod { flex: 1 1 100% !important; min-width: 0 !important; }
+  .di-fila > .di-col-num  { flex: 1 1 calc(50% - 3px) !important; width: auto !important; }
+  .di-fila > .di-col-costo { flex: 1 1 auto; text-align: right; }
+}
+</style>
