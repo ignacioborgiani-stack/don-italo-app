@@ -218,21 +218,59 @@ export const contratoAlquilerFromDb = r => ({
 })
 
 // ── Plantillas de costos (Proyectados) ────────────────────────────
-export const plantillaToDb = p => ({
-  id: p.id,
-  cultivo: p.cultivo || '',
-  nombre: p.nombre || '',
-  items_costo: Array.isArray(p.itemsCosto) ? p.itemsCosto : [],
-  etapas: Array.isArray(p.etapas) ? p.etapas : [],
+// Bloque de un cultivo dentro de una plantilla de doble. Igual que las simples,
+// la plantilla NO guarda rinde ni precio de venta: sólo etapas e ítems.
+const cultivoPlantillaToDb = c => ({
+  nombre: c?.nombre || '',
+  itemsCosto: Array.isArray(c?.itemsCosto) ? c.itemsCosto : [],
+  etapas: Array.isArray(c?.etapas) ? c.etapas : [],
+  ordenarCat: c?.ordenarCat !== false,
 })
-export const plantillaFromDb = r => ({
-  id: r.id,
-  cultivo: r.cultivo || '',
-  nombre: r.nombre || '',
-  itemsCosto: r.items_costo || [],
-  etapas: r.etapas || [],
-  createdAt: r.created_at,
+const cultivoPlantillaFromDb = c => ({
+  nombre: c?.nombre || '',
+  itemsCosto: c?.itemsCosto || [],
+  etapas: c?.etapas || [],
+  ordenarCat: c?.ordenarCat !== false,
 })
+
+// Una plantilla de DOBLE guarda los dos cultivos + el reparto del alquiler en la
+// columna `datos` (migración 15) y el nombre combinado en `cultivo`. Las simples
+// siguen usando cultivo/items_costo/etapas exactamente como antes, con datos={}.
+export const plantillaToDb = p => {
+  const esDoble = p.tipoSiembra === 'doble'
+  return {
+    id: p.id,
+    cultivo: esDoble ? nombreDoble(p.cultivoInvernal?.nombre, p.cultivoEstival?.nombre) : (p.cultivo || ''),
+    nombre: p.nombre || '',
+    tipo_siembra: esDoble ? 'doble' : 'simple',
+    items_costo: esDoble ? [] : (Array.isArray(p.itemsCosto) ? p.itemsCosto : []),
+    etapas:      esDoble ? [] : (Array.isArray(p.etapas) ? p.etapas : []),
+    datos: esDoble
+      ? {
+          cultivoInvernal: cultivoPlantillaToDb(p.cultivoInvernal),
+          cultivoEstival:  cultivoPlantillaToDb(p.cultivoEstival),
+          repartoInvernal: p.repartoInvernal == null ? 50 : parseFloat(p.repartoInvernal),
+          repartoEstival:  p.repartoEstival  == null ? 50 : parseFloat(p.repartoEstival),
+        }
+      : {},
+  }
+}
+export const plantillaFromDb = r => {
+  const base = { id: r.id, cultivo: r.cultivo || '', nombre: r.nombre || '', createdAt: r.created_at }
+  // Las filas anteriores a la migración 15 no tienen tipo_siembra → simple.
+  if (r.tipo_siembra === 'doble') {
+    const d = r.datos || {}
+    return {
+      ...base,
+      tipoSiembra: 'doble',
+      cultivoInvernal: cultivoPlantillaFromDb(d.cultivoInvernal),
+      cultivoEstival:  cultivoPlantillaFromDb(d.cultivoEstival),
+      repartoInvernal: d.repartoInvernal == null ? 50 : parseFloat(d.repartoInvernal),
+      repartoEstival:  d.repartoEstival  == null ? 50 : parseFloat(d.repartoEstival),
+    }
+  }
+  return { ...base, tipoSiembra: 'simple', itemsCosto: r.items_costo || [], etapas: r.etapas || [] }
+}
 
 // ── Catálogo de insumos ───────────────────────────────────────────
 export const catToDb = c => ({

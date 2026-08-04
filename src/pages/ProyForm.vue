@@ -1,11 +1,30 @@
 <template>
   <div>
+    <!-- Cargar desde plantilla — sirve para simple y para doble -->
+    <div v-if="plantillasCultivo.length" style="margin-bottom:14px;background:#f0fdf4;border:1px solid #cde3cb;border-radius:8px;padding:10px 12px">
+      <label class="di-lbl" style="color:#2d5a27">📋 Cargar desde plantilla ({{ nombreCultivoActual }})</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select v-model="plantillaSel" class="di-inp" style="flex:1;min-width:200px">
+          <option value="">— Elegí una plantilla —</option>
+          <option v-for="p in plantillasCultivo" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+        </select>
+        <q-btn unelevated dense color="primary" label="Cargar" :disable="!plantillaSel" @click="cargarPlantilla"/>
+      </div>
+      <p style="font-size:11px;color:#6b7280;margin:6px 0 0">
+        {{ esDoble
+          ? 'Reemplaza las etapas e ítems de los DOS cultivos y el reparto del alquiler; el rinde y el precio de cada uno quedan como están.'
+          : 'Reemplaza las etapas e ítems actuales; después podés editarlos sin afectar la plantilla.' }}
+      </p>
+    </div>
+
     <!-- ════════ DOBLE CULTIVO ════════ -->
     <template v-if="esDoble">
-      <CultivoBlock titulo="Cultivo Invernal" emoji="🌾" border-color="#5b8dd9" cultivo-type="invernal"
+      <!-- La key remonta el editor al cargar una plantilla: ItemsCostoCatalogo
+           arma su estado una sola vez y no observa cambios de props. -->
+      <CultivoBlock :key="'inv-'+editorKey" titulo="Cultivo Invernal" emoji="🌾" border-color="#5b8dd9" cultivo-type="invernal"
         :cultivo-obj="f.cultivoInvernal" :precio-editable="false"
         @update:cultivo-obj="v=>f.cultivoInvernal=v"/>
-      <CultivoBlock titulo="Cultivo Estival (sobre rastrojo)" emoji="☀️" border-color="#e8a838" cultivo-type="estival"
+      <CultivoBlock :key="'est-'+editorKey" titulo="Cultivo Estival (sobre rastrojo)" emoji="☀️" border-color="#e8a838" cultivo-type="estival"
         :cultivo-obj="f.cultivoEstival" :precio-editable="false"
         @update:cultivo-obj="v=>f.cultivoEstival=v"/>
 
@@ -44,28 +63,10 @@
           <p :style="{fontSize:'17px',fontWeight:700,color:c}">{{ fmtUSD(v) }}</p>
         </div>
       </div>
-
-      <div class="row justify-end q-gutter-sm">
-        <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-        <q-btn unelevated color="primary" label="Guardar" :loading="guardando" @click="onGuardar"/>
-      </div>
     </template>
 
     <!-- ════════ CULTIVO SIMPLE ════════ -->
     <template v-else>
-    <!-- Cargar desde plantilla (si hay plantillas para este cultivo) -->
-    <div v-if="plantillasCultivo.length" style="margin-bottom:14px;background:#f0fdf4;border:1px solid #cde3cb;border-radius:8px;padding:10px 12px">
-      <label class="di-lbl" style="color:#2d5a27">📋 Cargar desde plantilla ({{ f.cultivo }})</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <select v-model="plantillaSel" class="di-inp" style="flex:1;min-width:200px">
-          <option value="">— Elegí una plantilla —</option>
-          <option v-for="p in plantillasCultivo" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-        </select>
-        <q-btn unelevated dense color="primary" label="Cargar" :disable="!plantillaSel" @click="cargarPlantilla"/>
-      </div>
-      <p style="font-size:11px;color:#6b7280;margin:6px 0 0">Reemplaza las etapas e ítems actuales; después podés editarlos sin afectar la plantilla.</p>
-    </div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
         <label class="di-lbl">Rendimiento (qq/ha)</label>
@@ -91,10 +92,14 @@
         <p :style="{fontSize:'17px',fontWeight:700,color:c}">{{ fmtUSD(v) }}</p>
       </div>
     </div>
-    <!-- Guardar como plantilla -->
+    </template>
+
+    <!-- Guardar como plantilla — sirve para simple y para doble -->
     <div style="border-top:1px solid #f0ede8;margin-top:6px;padding-top:10px;margin-bottom:12px">
       <div v-if="!mostrarGuardarPlantilla" class="row items-center q-gutter-sm">
-        <q-btn flat dense size="sm" color="primary" icon="bookmark_add" label="Guardar como plantilla" @click="abrirGuardarPlantilla"/>
+        <q-btn flat dense size="sm" color="primary" icon="bookmark_add"
+          :label="esDoble ? 'Guardar los dos cultivos como plantilla' : 'Guardar como plantilla'"
+          @click="abrirGuardarPlantilla"/>
         <span v-if="okPlantilla" style="font-size:12px;color:#166534">✓ {{ okPlantilla }}</span>
       </div>
       <div v-else style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -109,7 +114,6 @@
       <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
       <q-btn unelevated color="primary" label="Guardar" :loading="guardando" @click="onGuardar"/>
     </div>
-    </template>
   </div>
 </template>
 
@@ -121,6 +125,7 @@ import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
 import { usePlantillasStore } from '../stores/plantillas'
 import { calcIngresoHa, calcularCostoItemHa } from '../utils/calculations'
+import { nombreDoble } from '../utils/mappers'
 import { fmtUSD } from '../utils/formatters'
 
 const props = defineProps({ proy: Object, guardando: { type: Boolean, default: false } })
@@ -147,15 +152,37 @@ function onUpdItems(v) { f.itemsCosto = v.items; f.etapas = v.etapas; f.ordenarC
 
 // ── Plantillas ────────────────────────────────────────────────────
 const editorKey = ref(0)   // al cambiarlo, se remonta el editor con los ítems nuevos
-const plantillasCultivo = computed(() => plantillas.plantillasDe(f.cultivo))
+// En un doble la plantilla se identifica por el nombre combinado de los dos
+// cultivos, igual que la fila de `proyecciones`.
+const nombreCultivoActual = computed(() => esDoble.value
+  ? nombreDoble(f.cultivoInvernal?.nombre, f.cultivoEstival?.nombre)
+  : f.cultivo)
+const plantillasCultivo = computed(() =>
+  plantillas.plantillasDe(nombreCultivoActual.value, esDoble.value ? 'doble' : 'simple'))
 
 const plantillaSel = ref('')
+// copia profunda: editar el presupuesto NO afecta la plantilla original
+const clonar = v => JSON.parse(JSON.stringify(v || []))
 function cargarPlantilla() {
   const p = plantillas.items.find(x => x.id === plantillaSel.value)
   if (!p) return
-  // copia profunda: editar el presupuesto NO afecta la plantilla original
-  f.itemsCosto = JSON.parse(JSON.stringify(p.itemsCosto || []))
-  f.etapas     = JSON.parse(JSON.stringify(p.etapas || []))
+  if (esDoble.value) {
+    // Se rellenan etapas, ítems y el reparto; el nombre, el rinde y el precio
+    // de cada cultivo quedan como los tenía el usuario.
+    const aplicar = (destino, origen) => ({
+      ...destino,
+      itemsCosto: clonar(origen?.itemsCosto),
+      etapas: clonar(origen?.etapas),
+      ordenarCat: origen?.ordenarCat !== false,
+    })
+    f.cultivoInvernal = aplicar(f.cultivoInvernal, p.cultivoInvernal)
+    f.cultivoEstival  = aplicar(f.cultivoEstival,  p.cultivoEstival)
+    f.repartoInvernal = p.repartoInvernal ?? 50
+    f.repartoEstival  = p.repartoEstival ?? 50
+  } else {
+    f.itemsCosto = clonar(p.itemsCosto)
+    f.etapas     = clonar(p.etapas)
+  }
   editorKey.value++
   plantillaSel.value = ''
 }
@@ -166,7 +193,7 @@ const guardandoPlantilla = ref(false)
 const okPlantilla    = ref('')
 const errorPlantilla = ref('')
 function abrirGuardarPlantilla() {
-  plantillaNombre.value = `Plantilla ${f.cultivo} ${main.campania}`
+  plantillaNombre.value = `Plantilla ${nombreCultivoActual.value} ${main.campania}`
   okPlantilla.value = ''; errorPlantilla.value = ''
   mostrarGuardarPlantilla.value = true
 }
@@ -174,8 +201,19 @@ async function guardarPlantilla() {
   const nombre = (plantillaNombre.value || '').trim()
   if (!nombre) return
   guardandoPlantilla.value = true; errorPlantilla.value = ''
+  // Sólo etapas + ítems (y el reparto en el doble): la plantilla no guarda
+  // rinde ni precio de venta, igual que las simples de siempre.
+  const soloCostos = c => ({ nombre: c?.nombre || '', itemsCosto: c?.itemsCosto || [], etapas: c?.etapas || [], ordenarCat: c?.ordenarCat !== false })
   try {
-    await plantillas.addPlantilla({ cultivo: f.cultivo, nombre, itemsCosto: f.itemsCosto, etapas: f.etapas })
+    await plantillas.addPlantilla(esDoble.value
+      ? {
+          tipoSiembra: 'doble', nombre,
+          cultivoInvernal: soloCostos(f.cultivoInvernal),
+          cultivoEstival:  soloCostos(f.cultivoEstival),
+          repartoInvernal: parseFloat(f.repartoInvernal) || 0,
+          repartoEstival:  parseFloat(f.repartoEstival) || 0,
+        }
+      : { tipoSiembra: 'simple', cultivo: f.cultivo, nombre, itemsCosto: f.itemsCosto, etapas: f.etapas })
     okPlantilla.value = `Guardada: ${nombre}`
     mostrarGuardarPlantilla.value = false
   } catch (e) { errorPlantilla.value = e.message || 'No se pudo guardar la plantilla' }

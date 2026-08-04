@@ -20,9 +20,12 @@ export const usePlantillasStore = defineStore('plantillas', () => {
     items.value = (data || []).map(plantillaFromDb)
   }
 
-  // Plantillas disponibles para un cultivo dado.
-  function plantillasDe(cultivo) {
-    return items.value.filter(p => p.cultivo === cultivo)
+  // Plantillas disponibles para un cultivo dado. En un doble, `cultivo` es el
+  // nombre combinado ("Trigo / Soja") y sólo se ofrecen plantillas de doble de
+  // ESA misma combinación (una plantilla de trigo no aplica a un maíz).
+  // El default 'simple' preserva el comportamiento de los llamadores viejos.
+  function plantillasDe(cultivo, tipoSiembra = 'simple') {
+    return items.value.filter(p => p.cultivo === cultivo && (p.tipoSiembra || 'simple') === tipoSiembra)
   }
 
   async function addPlantilla(p) {
