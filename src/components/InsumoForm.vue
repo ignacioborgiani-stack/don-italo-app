@@ -30,7 +30,7 @@
       <div>
         <label class="di-lbl">Unidad</label>
         <select v-model="f.unidadPrecio" class="di-inp">
-          <option v-for="u in UNIDADES" :key="u" :value="u">{{ u }}</option>
+          <option v-for="u in UNIDADES_PRECIO" :key="u.key" :value="u.key">{{ u.label }}</option>
         </select>
       </div>
     </div>
@@ -79,6 +79,8 @@
 
 <script setup>
 import { reactive, computed, ref } from 'vue'
+// Fuente ÚNICA de unidades de precio (antes había una lista duplicada acá).
+import { UNIDADES_PRECIO } from '../utils/constants'
 
 const props = defineProps({
   initial:  Object,
@@ -87,7 +89,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'cancel'])
 
-const UNIDADES = ['litro', 'kg', 'tn', 'bolsa', 'ha', 'unidad']
 const base = () => ({ nombre: '', familia: props.familias[0] || 'Otros', precio: '', moneda: 'USD', unidadPrecio: 'litro', notas: '', equivalencias: [], activo: true })
 const f = reactive(props.initial ? { ...base(), ...props.initial, equivalencias: [...(props.initial.equivalencias || [])] } : base())
 

@@ -29,6 +29,19 @@ export const CATEGORIAS_ESPECIALES = ['arrendamiento', 'seguro', 'comercializaci
 // Son SUGERENCIAS: el usuario los edita libremente en cada ítem.
 export const COMERCIALIZACION_DEFAULT = { porcCorredor: 0.5, porcSellado: 0.07, arsPorTn: 850 }
 
+// ── Canon de HT (hectárea tecnológica) ────────────────────────────
+// Una HT tiene precio fijo en USD pero cubre N toneladas entregadas, así que
+// las HT que consume un lote dependen del rinde. El ítem se vincula a un
+// producto del catálogo con unidadPrecio 'ht' y lleva su propio `tnPorHT`
+// (NO usa `dosis`: en todo el resto de la app la dosis multiplica y acá
+// dividiría, y además `dosis` se suma en los resúmenes de insumos).
+export const HT_TN_DEFAULT = 3
+export const esItemHT = (item, insumo = null) => !!item?.modoHT || insumo?.unidadPrecio === 'ht'
+export const tnPorHTde = item => {
+  const n = parseFloat(item?.tnPorHT)
+  return n > 0 ? n : HT_TN_DEFAULT
+}
+
 // ── Orden y agrupación de ítems de costo ──────────────────────────
 
 // Orden agronómico de las categorías: define cómo se ordenan los ítems en el
@@ -104,6 +117,7 @@ export function unidadDosisInsumo(insumo) {
     case 'bolsa':  return insumo.kgPorBolsa ? 'kg/ha' : 'bolsas/ha'
     case 'ha':     return 'ha (pasadas)'
     case 'unidad': return 'unidades/ha'
+    case 'ht':     return 'tn por HT'          // el campo editable es tnPorHT, no la dosis
     default:       return ''
   }
 }
@@ -186,6 +200,22 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
   // ── Ítems vinculados al catálogo ──
   if (item.insumoId) {
     const dosis = parseFloat(item.dosis) || 0
+    const insumoHT = catalogo.find(i => i.id === item.insumoId)
+
+    // ── Canon de HT: el precio es POR HT y las HT consumidas salen del rinde.
+    //      HT/ha  = rinde(tn/ha) / tnPorHT
+    //      USD/ha = precioHT × rinde(tn/ha) / tnPorHT
+    //   `precioUnit` (Contables) es el precio POR HT congelado; si no está, se
+    //   usa el del catálogo con su conversión de moneda. Con rinde 0 da 0.
+    if (esItemHT(item, insumoHT)) {
+      const tnPorHT = tnPorHTde(item)
+      const manual = item.precioUnit != null && item.precioUnit !== ''
+      if (!manual && !insumoHT) return parseFloat(item.costoHaUsd) || 0   // referencia rota
+      let precioHT = manual ? (parseFloat(item.precioUnit) || 0) : (parseFloat(insumoHT.precio) || 0)
+      if (!manual && insumoHT.moneda === 'ARS') precioHT = precioHT / (parseFloat(tipoCambio) || 1)
+      return precioHT * rendTn / tnPorHT
+    }
+
     // Precio MANUAL efectivo (USD por unidad de dosis): costo = precioUnit × dosis,
     // sin más conversión de unidad/moneda. Permite congelar precios históricos y
     // sobrevive aunque el insumo se borre del catálogo.

@@ -9,6 +9,9 @@ export function nombreItem(it, ctx) {
 }
 
 export function unidadItem(it, ctx) {
+  // El canon de HT no tiene "cantidad" acumulable: se informa el parámetro del
+  // contrato (tn que cubre una HT) como unidad, y la cantidad queda vacía.
+  if (it.modoHT) return `canon HT (${Number(it.tnPorHT) || 3} tn/HT)`
   if (it.insumoId) return unidadDosisInsumo(ctx.catalogo.find(i => i.id === it.insumoId))
   if (it.laborId) {
     const l = ctx.labores.find(x => x.id === it.laborId)
@@ -24,6 +27,9 @@ export function unidadItem(it, ctx) {
 }
 
 export function cantidadItem(it, ctx) {
+  // HT: `tnPorHT` es un factor de conversión, NO una cantidad — si se devolviera
+  // acá, `agrupar()` sumaría los factores de dos ítems de HT (3 + 3 = 6).
+  if (it.modoHT) return ''
   if (it.laborId) {
     const l = ctx.labores.find(x => x.id === it.laborId)
     if (l?.esPorcentaje) return Number(it.dosis ?? l.porcentaje ?? 0)

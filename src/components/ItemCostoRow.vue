@@ -88,8 +88,16 @@
             <option value="__nuevo__">＋ Agregar al catálogo…</option>
           </select>
           <span v-if="sinVincular" style="display:inline-block;margin-top:3px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:0 7px;font-size:10px;font-weight:600">Sin vincular: {{ item.nombreManual || item.nombre }} (${{ fmtNum(item.costoHaUsd) }}/ha)</span>
+          <div v-if="esHT" style="font-size:10px;color:#9ca3af;margin-top:2px">
+            ≈ {{ fmtNum(htPorHa) }} HT/ha · rinde {{ fmtNum(rendTnHa) }} tn/ha
+          </div>
         </div>
-        <div class="di-col-num" style="width:88px;flex-shrink:0">
+        <!-- HT: el campo editable es tn por HT (NO dosis); default 3 -->
+        <div v-if="esHT" class="di-col-num" style="width:88px;flex-shrink:0">
+          <input type="number" step="any" :value="item.tnPorHT ?? HT_TN_DEFAULT" @input="onTnPorHT($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="3" title="Toneladas que cubre una HT (varía por contrato)"/>
+          <span style="font-size:10px;color:#9ca3af">tn por HT</span>
+        </div>
+        <div v-else class="di-col-num" style="width:88px;flex-shrink:0">
           <input type="number" step="any" :value="item.dosis" @input="onDosis($event.target.value)" class="di-inp" style="padding:5px 6px;font-size:12px;text-align:right" placeholder="0" :disabled="!item.insumoId"/>
           <span style="font-size:10px;color:#9ca3af">{{ unidadLabel || 'dosis' }}</span>
         </div>
@@ -145,7 +153,7 @@
 <script setup>
 import { computed } from 'vue'
 import { CATEGORIAS } from '../utils/constants'
-import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, COMERCIALIZACION_DEFAULT, unidadDosisInsumo, unidadDosisLabor, calcularCostoItemHa } from '../utils/calculations'
+import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, COMERCIALIZACION_DEFAULT, HT_TN_DEFAULT, esItemHT, unidadDosisInsumo, unidadDosisLabor, calcularCostoItemHa } from '../utils/calculations'
 import { fmtUSD, fmtNum } from '../utils/formatters'
 
 const props = defineProps({
@@ -176,6 +184,14 @@ const fmtCosto = n => Math.abs(Number(n) || 0) < 100
 const insumoSel = computed(() => props.catalogo.find(i => i.id === props.item.insumoId) || null)
 const laborSel  = computed(() => props.labores.find(l => l.id === props.item.laborId) || null)
 const unidadLabel = computed(() => unidadDosisInsumo(insumoSel.value))
+// Canon de HT: se resuelve por el flag del ítem o por la unidad del producto.
+const esHT = computed(() => esItemHT(props.item, insumoSel.value))
+// HT consumidas por hectárea = rinde(tn/ha) / tn por HT — para control visual.
+const htPorHa = computed(() => {
+  const tn = (parseFloat(props.rendimientoQq) || 0) / 10
+  const porHT = parseFloat(props.item.tnPorHT) || HT_TN_DEFAULT
+  return porHT > 0 ? tn / porHT : 0
+})
 
 // Precio manual efectivo por unidad de dosis (USD). Se muestra el guardado en el
 // ítem; NO cae al catálogo (para no pisar precios históricos al editar).
@@ -183,6 +199,7 @@ const precioMostrado = computed(() =>
   (props.item.precioUnit != null && props.item.precioUnit !== '') ? props.item.precioUnit : '')
 const precioLabel = computed(() => {
   if (!insumoSel.value) return 'precio'
+  if (esHT.value) return 'USD/HT'
   const unidad = unidadDosisInsumo(insumoSel.value).replace(/\/ha.*$/, '').replace(' (pasadas)', '') || 'u'
   return `USD/${unidad}`
 })
@@ -212,7 +229,7 @@ function recompute(it) {
 function emitChange(patch) { emit('update:item', recompute({ ...props.item, ...patch })) }
 
 function onCategoria(cat) {
-  const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', precioUnit: '', modoEspecial: false, parametroEspecial: null }
+  const patch = { categoria: cat, insumoId: null, laborId: null, nombreManual: '', dosis: '', precioUnit: '', modoEspecial: false, parametroEspecial: null, modoHT: false, tnPorHT: undefined }
   if (cat === 'arrendamiento') { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'usd_ha', valor: 0, porcentaje: 0 } }
   else if (cat === 'seguro')   { patch.modoEspecial = true; patch.parametroEspecial = { modalidad: 'monto_fijo', valor: 0, porcentaje: 0, rindeAsegurado: 0 } }
   // Valores típicos como sugerencia; el usuario los edita libremente por ítem.
@@ -222,16 +239,26 @@ function onCategoria(cat) {
 function onProducto(val) {
   if (val === '__nuevo__') { emit('crear-insumo', props.item.categoria); return }
   const insumo = props.catalogo.find(i => i.id === val)
-  const patch = { insumoId: val || null, nombreManual: insumo ? insumo.nombre : props.item.nombreManual, unidadDosis: unidadDosisInsumo(insumo) }
-  // Contables + ítem NUEVO: sugerir el precio efectivo (USD/unidad de dosis) del
-  // catálogo actual, calculado con dosis=1. Editable; se congela al guardar.
+  const esHT = esItemHT({}, insumo)
+  const patch = {
+    insumoId: val || null,
+    nombreManual: insumo ? insumo.nombre : props.item.nombreManual,
+    unidadDosis: unidadDosisInsumo(insumo),
+    modoHT: esHT,
+    // El HT no usa dosis (guarda tnPorHT); los demás resetean tnPorHT.
+    tnPorHT: esHT ? (props.item.tnPorHT || HT_TN_DEFAULT) : undefined,
+  }
+  // Contables + ítem NUEVO: sugerir el precio del catálogo, editable, se congela.
+  // Para el HT ese precio es POR HT (no lleva rinde); para el resto es el
+  // efectivo por unidad de dosis (calculado con dosis=1).
   if (props.precioEditable) {
-    patch.precioUnit = insumo
-      ? calcularCostoItemHa({ insumoId: insumo.id, dosis: 1 }, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores)
-      : ''
+    patch.precioUnit = !insumo ? ''
+      : esHT ? (parseFloat(insumo.precio) || 0)
+      : calcularCostoItemHa({ insumoId: insumo.id, dosis: 1 }, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores)
   }
   emitChange(patch)
 }
+function onTnPorHT(val) { emitChange({ tnPorHT: val }) }
 function onPrecio(val) { emitChange({ precioUnit: val }) }
 function onLabor(val) {
   if (val === '__nuevo__') { emit('crear-labor', props.item.categoria); return }

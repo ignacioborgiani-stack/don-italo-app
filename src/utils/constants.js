@@ -98,6 +98,9 @@ export const UNIDADES_PRECIO = [
   { key: 'bolsa',  label: 'por bolsa'  },
   { key: 'ha',     label: 'por ha'     },
   { key: 'unidad', label: 'por unidad' },
+  // Canon de HT: el precio es por hectárea tecnológica y las HT que consume un
+  // lote dependen del rinde (una HT cubre N toneladas entregadas).
+  { key: 'ht',     label: 'por HT (hectárea tecnológica)' },
 ]
 
 export const MOCK_CATALOGO = [

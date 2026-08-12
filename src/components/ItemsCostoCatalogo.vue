@@ -166,7 +166,9 @@ function buildGrupos() {
     // Contables: al ABRIR un ítem existente vinculado a un insumo, precargar el
     // precio histórico guardado (costoHaCalculado / dosis), NO el del catálogo actual.
     // Así, guardar sin tocar nada preserva el costo (calcularCostoItemHa = precioUnit × dosis).
-    if (props.precioEditable && base.insumoId) {
+    // El canon de HT queda afuera: su precioUnit es el precio POR HT y ya viene
+    // guardado en el ítem; reconstruirlo desde la dosis lo corrompería.
+    if (props.precioEditable && base.insumoId && !base.modoHT) {
       const dosis = parseFloat(base.dosis) || 0
       const chc = parseFloat(base.costoHaCalculado)
       if (dosis > 0 && Number.isFinite(chc)) base.precioUnit = chc / dosis
