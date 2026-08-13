@@ -86,6 +86,22 @@ export function filasAsignacion(asig, ha, ctx, opts = {}) {
 // ── Exportación a Excel ───────────────────────────────────────────
 const num = n => (typeof n === 'number' ? Math.round(n * 100) / 100 : n)
 
+// Unidades que expresan una dosis POR HECTÁREA: son las únicas donde el consumo
+// total en unidades físicas tiene sentido (cantidad × hectáreas). Quedan afuera
+// 'ha (pasadas)' de las labores, 'tn por HT' del canon, y todo lo que se calcula
+// por rinde o por porcentaje del valor.
+const UNIDADES_POR_HA = ['kg/ha', 'litros/ha', 'bolsas/ha', 'unidades/ha']
+export const esUnidadPorHa = u => UNIDADES_POR_HA.includes(String(u || '').trim().toLowerCase())
+
+// Consumo total en unidades físicas. Devuelve '' (NO 0) cuando no aplica, para
+// que la celda quede vacía y no se confunda con un consumo nulo.
+export function consumoTotal(cantidad, ha, unidad) {
+  if (!esUnidadPorHa(unidad)) return ''
+  const c = parseFloat(cantidad), h = parseFloat(ha)
+  if (!Number.isFinite(c) || !Number.isFinite(h)) return ''
+  return r2(c * h)
+}
+
 // Convierte filas UI → filas con encabezados en español para la planilla
 function filaExcel(f, { conLote = false } = {}) {
   const base = conLote ? { Lote: f.lote || '' } : {}
@@ -96,6 +112,8 @@ function filaExcel(f, { conLote = false } = {}) {
     Categoría: f.categoria,
     Cantidad: f.cantidad,
     Unidad: f.unidad,
+    Hectáreas: num(f.ha),
+    'Consumo total (unidades)': f.consumo === '' || f.consumo == null ? '' : num(f.consumo),
     'Costo/ha (USD)': num(f.costoHa),
     'Costo total (USD)': num(f.costoTotal),
   }
@@ -119,12 +137,19 @@ export function agrupar(filas, ha, { conLote = false } = {}) {
     if (Number.isFinite(c)) { g.cant += c; g.hayCant = true }
     g.costoTotal += parseFloat(f.costoTotal) || 0
   }
-  const out = [...m.values()].map(g => ({
-    lote: g.lote, cultivo: g.cultivo, insumo: g.insumo, categoria: g.categoria, unidad: g.unidad,
-    cantidad: g.hayCant ? r2(g.cant) : '',
-    costoHa: g.ha > 0 ? r2(g.costoTotal / g.ha) : 0,   // Costo/ha = total / hectáreas
-    costoTotal: r2(g.costoTotal),
-  }))
+  const out = [...m.values()].map(g => {
+    const cantidad = g.hayCant ? r2(g.cant) : ''
+    return {
+      lote: g.lote, cultivo: g.cultivo, insumo: g.insumo, categoria: g.categoria, unidad: g.unidad,
+      cantidad,
+      // Las hectáreas SALEN DEL DATO (catastro), no de dividir costo total por
+      // costo/ha; por eso se propagan hasta acá en vez de descartarse.
+      ha: g.ha,
+      consumo: consumoTotal(cantidad, g.ha, g.unidad),
+      costoHa: g.ha > 0 ? r2(g.costoTotal / g.ha) : 0,   // Costo/ha = total / hectáreas
+      costoTotal: r2(g.costoTotal),
+    }
+  })
   out.sort((a, b) =>
     (conLote ? String(a.lote).localeCompare(String(b.lote)) : 0) ||
     ordenCat(a.categoria) - ordenCat(b.categoria) ||
@@ -157,6 +182,86 @@ export function agruparEnSecciones(filas, ha) {
   return { secciones, total: r2(total), totalHa: parseFloat(ha) > 0 ? r2(total / parseFloat(ha)) : 0 }
 }
 
+// ── Hoja "Consumo campaña" ────────────────────────────────────────
+// Referencias de columna en la hoja Resumen (ver filaExcel con conLote:true):
+//   A Lote · B Cultivo · C Insumo · D Categoría · E Cantidad · F Unidad
+//   G Hectáreas · H Consumo total · I Costo/ha · J Costo total
+const RES_COL = { insumo: 'C', unidad: 'F', consumo: 'H', costoTotal: 'J' }
+
+// Excel usa * ? como comodines en los criterios de SUMIFS/COUNTIFS y ~ para
+// escaparlos. Sin esto, un insumo llamado "Fungicida *plus*" sumaría de más EN
+// SILENCIO. El ~ va primero para no re-escapar los que agrega este mismo paso.
+const escaparComodines = s => String(s ?? '').replace(/~/g, '~~').replace(/([*?])/g, '~$1')
+const tieneComodines = s => /[*?~]/.test(String(s ?? ''))
+// Criterio del SUMIFS: por defecto apunta a la celda (clickeable y legible); si
+// el texto trae comodines, se usa el literal escapado para que no sobre-sume.
+const criterio = (valor, celda) => tieneComodines(valor)
+  ? `"${escaparComodines(valor).replace(/"/g, '""')}"`
+  : celda
+
+// Agrupa IGNORANDO mayúsculas/minúsculas: SUMIFS tampoco distingue, así que si
+// "DIFLUFENICAN" y "diflufenican" fueran dos filas, cada una sumaría las dos y
+// el total saldría duplicado. Una sola fila por grupo, con la primera grafía.
+export function agruparConsumoCampania(filasResumen) {
+  const m = new Map()
+  for (const f of filasResumen) {
+    if (!f.insumo) continue
+    const key = `${String(f.insumo).toLowerCase()}||${String(f.unidad || '').toLowerCase()}`
+    if (!m.has(key)) m.set(key, { insumo: f.insumo, unidad: f.unidad || '', lotes: new Set(), variantes: new Set() })
+    const g = m.get(key)
+    g.variantes.add(f.insumo)
+    if (f.lote) g.lotes.add(f.lote)
+  }
+  return [...m.values()]
+    .map(g => ({ insumo: g.insumo, unidad: g.unidad, lotesDistintos: g.lotes.size, variantes: g.variantes.size }))
+    .sort((a, b) => String(a.insumo).localeCompare(String(b.insumo), 'es', { sensitivity: 'base' }))
+}
+
+// Arma la hoja con los totales como FÓRMULAS que apuntan al Resumen.
+function hojaConsumoCampania(filasRes, nombreHojaResumen) {
+  const grupos = agruparConsumoCampania(filasRes)
+  // El nombre de hoja lleva espacio → va entre comillas simples en la fórmula.
+  const R = `'${String(nombreHojaResumen).replace(/'/g, "''")}'`
+  const col = c => `${R}!$${c}:$${c}`
+
+  const encabezado = ['Insumo', 'Unidad', 'Consumo total', 'Filas en Resumen', 'Lotes (dato calculado)', 'Costo total (USD)']
+  const filas = grupos.map(g => [g.insumo, g.unidad, null, null, g.lotesDistintos, null])
+  const ws = XLSX.utils.aoa_to_sheet([encabezado, ...filas])
+
+  grupos.forEach((g, i) => {
+    const r = i + 2                                   // fila 1 = encabezado
+    const cI = criterio(g.insumo, `$A${r}`)
+    const cU = criterio(g.unidad, `$B${r}`)
+    const filtro = `${col(RES_COL.insumo)},${cI},${col(RES_COL.unidad)},${cU}`
+    ws[`C${r}`] = { t: 'n', f: `SUMIFS(${col(RES_COL.consumo)},${filtro})` }
+    ws[`D${r}`] = { t: 'n', f: `COUNTIFS(${filtro})` }
+    ws[`F${r}`] = { t: 'n', f: `SUMIFS(${col(RES_COL.costoTotal)},${filtro})` }
+  })
+
+  // ── Bloque de control ──
+  const ultima = grupos.length + 1
+  const fCtrl = ultima + 2
+  const set = (ref, cell) => { ws[ref] = cell }
+  set(`A${fCtrl}`,     { t: 's', v: 'CONTROL' })
+  set(`A${fCtrl + 1}`, { t: 's', v: 'Suma de esta hoja' })
+  set(`C${fCtrl + 1}`, { t: 'n', f: grupos.length ? `SUM(C2:C${ultima})` : '0' })
+  set(`A${fCtrl + 2}`, { t: 's', v: 'Suma del Resumen (consumo)' })
+  set(`C${fCtrl + 2}`, { t: 'n', f: `SUM(${col(RES_COL.consumo)})` })
+  set(`A${fCtrl + 3}`, { t: 's', v: 'Diferencia (debe ser 0)' })
+  set(`C${fCtrl + 3}`, { t: 'n', f: `C${fCtrl + 1}-C${fCtrl + 2}` })
+
+  const fNota = fCtrl + 5
+  set(`A${fNota}`,     { t: 's', v: 'Cómo se arma: Hectáreas (del catastro) → Consumo por fila (Cantidad × Hectáreas, sólo unidades por ha) → esta hoja (SUMIFS sobre el Resumen).' })
+  set(`A${fNota + 1}`, { t: 's', v: 'La fila CONTROL es un control de integridad, no una cifra de negocio: suma unidades distintas (kg con litros) y sólo sirve para verificar que no se perdió ni se duplicó ninguna fila.' })
+  set(`A${fNota + 2}`, { t: 's', v: 'Los insumos se agrupan ignorando mayúsculas y minúsculas, porque SUMIFS tampoco las distingue.' })
+
+  // Sin ampliar el rango, writeFile DESCARTA en silencio todo lo que quedó
+  // fuera del !ref que dejó aoa_to_sheet.
+  ws['!ref'] = `A1:F${fNota + 2}`
+  ws['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 15 }, { wch: 17 }, { wch: 21 }, { wch: 17 }]
+  return ws
+}
+
 // Genera el .xlsx: hoja 1 = detalle del lote/cultivo (agrupado), hoja 2 = resumen de la campaña.
 export function exportarExcel({ archivo, hojaDetalle, filasDetalle, haDetalle, filasResumen, campania }) {
   const wb = XLSX.utils.book_new()
@@ -171,9 +276,16 @@ export function exportarExcel({ archivo, hojaDetalle, filasDetalle, haDetalle, f
   // Hoja resumen: agrupada por lote+insumo + TOTAL general
   const res = agrupar(filasResumen, null, { conLote: true })
   const totalRes = res.reduce((s, f) => s + (parseFloat(f.costoTotal) || 0), 0)
-  res.push({ lote: 'TOTAL', cultivo: '', insumo: '', categoria: '', cantidad: '', unidad: '', costoHa: '', costoTotal: r2(totalRes) })
+  // La fila TOTAL deja el consumo VACÍO a propósito: sumar kg con litros no
+  // significa nada. (Además, con insumo vacío ningún SUMIFS la levanta.)
+  res.push({ lote: 'TOTAL', cultivo: '', insumo: '', categoria: '', cantidad: '', unidad: '', ha: '', consumo: '', costoHa: '', costoTotal: r2(totalRes) })
   const wsRes = XLSX.utils.json_to_sheet(res.map(f => filaExcel(f, { conLote: true })))
-  XLSX.utils.book_append_sheet(wb, wsRes, `Resumen ${campania || ''}`.trim().slice(0, 31).replace(/[/\\?*[\]]/g, '-'))
+  const nombreRes = `Resumen ${campania || ''}`.trim().slice(0, 31).replace(/[/\\?*[\]]/g, '-')
+  XLSX.utils.book_append_sheet(wb, wsRes, nombreRes)
+
+  // Hoja 3: consumo por insumo de toda la campaña, con fórmulas al Resumen.
+  // Se arma con las filas SIN la fila TOTAL (que no es un insumo).
+  XLSX.utils.book_append_sheet(wb, hojaConsumoCampania(res.slice(0, -1), nombreRes), 'Consumo campaña')
 
   XLSX.writeFile(wb, archivo)
 }
