@@ -202,10 +202,15 @@ const criterio = (valor, celda) => tieneComodines(valor)
 // Agrupa IGNORANDO mayúsculas/minúsculas: SUMIFS tampoco distingue, así que si
 // "DIFLUFENICAN" y "diflufenican" fueran dos filas, cada una sumaría las dos y
 // el total saldría duplicado. Una sola fila por grupo, con la primera grafía.
+//
+// La hoja tiene UNA sola definición: consumo de insumos físicos. Por eso sólo
+// entran las filas con unidad por hectárea; cosecha, flete, seguro, labores y
+// el canon HT quedan afuera (no se compran en unidades físicas y una fila
+// "consumo 0" se lee mal en una planilla que se usa para comprar).
 export function agruparConsumoCampania(filasResumen) {
   const m = new Map()
   for (const f of filasResumen) {
-    if (!f.insumo) continue
+    if (!f.insumo || !esUnidadPorHa(f.unidad)) continue
     const key = `${String(f.insumo).toLowerCase()}||${String(f.unidad || '').toLowerCase()}`
     if (!m.has(key)) m.set(key, { insumo: f.insumo, unidad: f.unidad || '', lotes: new Set(), variantes: new Set() })
     const g = m.get(key)
@@ -222,7 +227,10 @@ function hojaConsumoCampania(filasRes, nombreHojaResumen) {
   const grupos = agruparConsumoCampania(filasRes)
   // El nombre de hoja lleva espacio → va entre comillas simples en la fórmula.
   const R = `'${String(nombreHojaResumen).replace(/'/g, "''")}'`
-  const col = c => `${R}!$${c}:$${c}`
+  // Rangos ACOTADOS a las filas de datos del Resumen: fila 1 encabezado, datos
+  // de la 2 a la N+1, y la fila TOTAL (N+2) queda afuera a propósito.
+  const ultFilaDatos = Math.max(2, filasRes.length + 1)
+  const col = c => `${R}!$${c}$2:$${c}$${ultFilaDatos}`
 
   const encabezado = ['Insumo', 'Unidad', 'Consumo total', 'Filas en Resumen', 'Lotes (dato calculado)', 'Costo total (USD)']
   const filas = grupos.map(g => [g.insumo, g.unidad, null, null, g.lotesDistintos, null])
@@ -250,14 +258,18 @@ function hojaConsumoCampania(filasRes, nombreHojaResumen) {
   set(`A${fCtrl + 3}`, { t: 's', v: 'Diferencia (debe ser 0)' })
   set(`C${fCtrl + 3}`, { t: 'n', f: `C${fCtrl + 1}-C${fCtrl + 2}` })
 
+  const notas = [
+    'Esta hoja lista SÓLO insumos físicos (unidades por hectárea). Cosecha, flete, seguro, labores y canon HT no se compran en unidades: están en el Resumen con su costo, pero no acá.',
+    'Cómo se arma: Hectáreas (del catastro) → Consumo por fila (Cantidad × Hectáreas, sólo unidades por ha) → esta hoja (SUMIFS sobre el Resumen).',
+    'La fila CONTROL es un control de integridad, no una cifra de negocio: suma unidades distintas (kg con litros) y sólo sirve para verificar que no se perdió ni se duplicó ninguna fila.',
+    'Los insumos se agrupan ignorando mayúsculas y minúsculas, porque SUMIFS tampoco las distingue.',
+  ]
   const fNota = fCtrl + 5
-  set(`A${fNota}`,     { t: 's', v: 'Cómo se arma: Hectáreas (del catastro) → Consumo por fila (Cantidad × Hectáreas, sólo unidades por ha) → esta hoja (SUMIFS sobre el Resumen).' })
-  set(`A${fNota + 1}`, { t: 's', v: 'La fila CONTROL es un control de integridad, no una cifra de negocio: suma unidades distintas (kg con litros) y sólo sirve para verificar que no se perdió ni se duplicó ninguna fila.' })
-  set(`A${fNota + 2}`, { t: 's', v: 'Los insumos se agrupan ignorando mayúsculas y minúsculas, porque SUMIFS tampoco las distingue.' })
+  notas.forEach((t, i) => set(`A${fNota + i}`, { t: 's', v: t }))
 
   // Sin ampliar el rango, writeFile DESCARTA en silencio todo lo que quedó
   // fuera del !ref que dejó aoa_to_sheet.
-  ws['!ref'] = `A1:F${fNota + 2}`
+  ws['!ref'] = `A1:F${fNota + notas.length - 1}`
   ws['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 15 }, { wch: 17 }, { wch: 21 }, { wch: 17 }]
   return ws
 }
