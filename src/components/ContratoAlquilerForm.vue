@@ -108,23 +108,25 @@ const asigActiva = computed(() => main.asignaciones.find(a => a.loteId === props
 const esDoble = computed(() => asigActiva.value?.tipoSiembra === 'doble')
 
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Acá los alquileres se pactan en quintales de SOJA aunque el lote tenga trigo
+// o maíz, así que es el default y siempre tiene que estar entre las opciones.
+const CULTIVO_ALQUILER_DEFAULT = 'Soja'
+
 const cultivoRefOpciones = computed(() => {
   const set = new Set(catStore.cultivos.map(c => c.nombre))
   const a = asigActiva.value
   ;[a?.cultivo?.nombre, a?.cultivoEstival?.nombre, a?.cultivoInvernal?.nombre].forEach(n => n && set.add(n))
+  set.add(CULTIVO_ALQUILER_DEFAULT)                      // que el select nunca quede en blanco
+  if (props.initial?.cultivoReferencia) set.add(props.initial.cultivoReferencia)  // ni pierda el guardado
   return [...set].filter(Boolean)
 })
-
-const cultivoDefault = () => {
-  const a = asigActiva.value
-  return a?.cultivoEstival?.nombre || a?.cultivo?.nombre || catStore.cultivos[0]?.nombre || 'Soja'
-}
 
 const c = reactive({
   campanaInicio:    props.initial?.campanaInicio || main.campania,
   campanaFin:       props.initial?.campanaFin    || main.campania,
   tipoContrato:     props.initial?.tipoContrato  || 'quintales_fijos',
-  cultivoReferencia: props.initial?.cultivoReferencia || cultivoDefault(),
+  // Editar respeta SIEMPRE el cultivo guardado; el default es sólo para nuevos.
+  cultivoReferencia: props.initial?.cultivoReferencia || CULTIVO_ALQUILER_DEFAULT,
   cantidad:         props.initial?.cantidad ?? '',
   repartoEstival:   props.initial?.repartoEstival ?? 60,
   repartoInvernal:  props.initial?.repartoInvernal ?? 40,
