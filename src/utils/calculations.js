@@ -244,6 +244,27 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
   return parseFloat(item.costoHaUsd ?? item.costoHaCalculado) || 0
 }
 
+// ── Hectáreas aplicadas por etapa ─────────────────────────────────
+// Una etapa puede haberse aplicado sobre menos hectáreas que el lote (34 de 50)
+// o sobre más (dos pasadas sobre 50 = 100). El costo de sus ítems se prorratea
+// a la hectárea de LOTE para que la columna siga siendo sumable:
+//   costo USD/ha de lote = costo por ha aplicada × (ha etapa ÷ ha lote)
+// SIN `haAplicadas` (o sin haLote, como en Proyectados) el factor es 1 y los
+// números quedan idénticos a los de siempre. No hay tope: puede ser > haLote.
+export function factorEtapa(etapa, haLote) {
+  const hE = parseFloat(etapa?.haAplicadas)
+  const hL = parseFloat(haLote)
+  if (!(hE > 0) || !(hL > 0)) return 1
+  return hE / hL
+}
+// Factor que le toca a un ítem según su etapa. Los ítems que vienen de Stocks
+// traen el costo YA expresado por hectárea de lote (`aplicarEnLote` divide por
+// las ha del lote), así que se marcan `sinProrrateo` para no prorratearlos dos veces.
+export function factorItem(item, etapas, haLote) {
+  if (item?.sinProrrateo) return 1
+  return factorEtapa((etapas || []).find(e => e.id === item?.etapa), haLote)
+}
+
 export function calcLote(lote) {
   if (lote.tipoSiembra === 'doble') {
     const ci = calcCostoHa(lote.cultivoInvernal),  ii = calcIngresoHa(lote.cultivoInvernal)

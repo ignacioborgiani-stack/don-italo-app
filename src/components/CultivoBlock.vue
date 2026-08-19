@@ -25,6 +25,7 @@
       :rendimiento-qq="cultivoObj.rendimientoQq"
       :precio-venta-tn="cultivoObj.precioVentaTn"
       :precio-editable="precioEditable"
+      :ha-lote="haLote"
       @update="v=>emit('update:cultivoObj',{...cultivoObj,itemsCosto:v.items,etapas:v.etapas,ordenarCat:v.ordenarCat})"/>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f9fafb;border-radius:8px;padding:8px 10px;margin-top:10px">
       <div v-for="[l,v,c] in stats" :key="l">
@@ -42,7 +43,7 @@ import ItemsCostoCatalogo from './ItemsCostoCatalogo.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
 import { CULTIVARES_INVERNALES } from '../utils/constants'
-import { calcIngresoHa, calcularCostoItemHa } from '../utils/calculations'
+import { calcIngresoHa, calcularCostoItemHa, factorItem } from '../utils/calculations'
 import { fmtUSD } from '../utils/formatters'
 
 const props = defineProps({
@@ -53,6 +54,9 @@ const props = defineProps({
   cultivoObj:  Object,
   // Contables congela precios (editable); Proyectados recalcula en vivo.
   precioEditable: { type: Boolean, default: true },
+  // Hectáreas del lote: habilitan las "hectáreas aplicadas" por etapa. 0 en
+  // Proyectados, donde el presupuesto abarca varios lotes.
+  haLote: { type: [Number, String], default: 0 },
 })
 const emit = defineEmits(['update:cultivoObj'])
 
@@ -60,8 +64,10 @@ const catStore = useCatalogoStore()
 const main = useMainStore()
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 
+// Costo por hectárea de LOTE: cada ítem prorrateado por las ha aplicadas de su etapa.
 const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) =>
-  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn, catStore.labores), 0))
+  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn, catStore.labores)
+      * factorItem(it, props.cultivoObj.etapas, props.haLote), 0))
 const ingHa    = computed(() => calcIngresoHa(props.cultivoObj))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 

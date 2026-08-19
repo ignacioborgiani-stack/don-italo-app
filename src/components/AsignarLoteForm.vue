@@ -49,13 +49,13 @@
 
       <template v-if="f.tipoSiembra==='simple'">
         <CultivoBlock titulo="Cultivo" emoji="🌱" border-color="#3a6b35" cultivo-type="simple"
-          :cultivo-obj="f.cultivo" @update:cultivo-obj="v=>f.cultivo=v"/>
+          :cultivo-obj="f.cultivo" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivo=v"/>
       </template>
       <template v-else>
         <CultivoBlock titulo="Cultivo Invernal" emoji="🌾" border-color="#5b8dd9" cultivo-type="invernal"
-          :cultivo-obj="f.cultivoInvernal" @update:cultivo-obj="v=>f.cultivoInvernal=v"/>
+          :cultivo-obj="f.cultivoInvernal" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivoInvernal=v"/>
         <CultivoBlock titulo="Cultivo Estival (sobre rastrojo)" emoji="☀️" border-color="#e8a838" cultivo-type="estival"
-          :cultivo-obj="f.cultivoEstival" @update:cultivo-obj="v=>f.cultivoEstival=v"/>
+          :cultivo-obj="f.cultivoEstival" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivoEstival=v"/>
       </template>
 
       <div class="row items-center justify-between q-mt-md">
@@ -85,7 +85,7 @@ import LoteMaestroForm from './LoteMaestroForm.vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useMainStore } from '../stores/main'
 import { useCatalogoStore } from '../stores/catalogo'
-import { calcularCostoItemHa } from '../utils/calculations'
+import { calcularCostoItemHa, factorItem } from '../utils/calculations'
 import { fmtNum } from '../utils/formatters'
 
 const props = defineProps({ campania: String, initial: Object })
@@ -123,12 +123,17 @@ async function onCrearLote(data) {
 }
 
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Hectáreas del lote elegido: habilitan las "hectáreas aplicadas" por etapa.
+const haLote = computed(() => parseFloat(loteSel.value?.ha) || 0)
 
 function finalizar(c) {
   if (!c) return null
+  // El costo se congela YA PRORRATEADO a la hectárea de lote, para que todo lo
+  // que lee `costoHaCalculado` (totales, márgenes, indicadores, Excel) siga igual.
   return { ...c, itemsCosto: (c.itemsCosto || []).map(it => ({
     ...it,
-    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, c.rendimientoQq, c.precioVentaTn, catStore.labores),
+    costoHaCalculado: calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, c.rendimientoQq, c.precioVentaTn, catStore.labores)
+      * factorItem(it, c.etapas, haLote.value),
   })) }
 }
 

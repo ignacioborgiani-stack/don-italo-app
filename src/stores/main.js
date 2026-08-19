@@ -393,6 +393,10 @@ export const useMainStore = defineStore('main', () => {
       nombre: `${stock.nombre} (${parseFloat(cant) || 0} ${stock.unidad} aplicado)`,
       costoHaUsd: ha > 0 ? Math.round((total / ha) * 100) / 100 : 0,
       origenStock: stock.id,
+      // El costo ya viene dividido por las hectáreas del LOTE, así que este ítem
+      // no se prorratea por las hectáreas aplicadas de la etapa donde caiga:
+      // sería prorratearlo dos veces.
+      sinProrrateo: true,
     }
 
     let delta

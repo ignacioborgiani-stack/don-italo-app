@@ -218,12 +218,17 @@ export const contratoAlquilerFromDb = r => ({
 })
 
 // ── Plantillas de costos (Proyectados) ────────────────────────────
+// Las plantillas NO se llevan las hectáreas aplicadas: dependen del lote y una
+// plantilla se reutiliza entre lotes de superficies distintas.
+const etapasSinHa = etapas => (Array.isArray(etapas) ? etapas : [])
+  .map(({ haAplicadas, ...resto }) => resto)
+
 // Bloque de un cultivo dentro de una plantilla de doble. Igual que las simples,
 // la plantilla NO guarda rinde ni precio de venta: sólo etapas e ítems.
 const cultivoPlantillaToDb = c => ({
   nombre: c?.nombre || '',
   itemsCosto: Array.isArray(c?.itemsCosto) ? c.itemsCosto : [],
-  etapas: Array.isArray(c?.etapas) ? c.etapas : [],
+  etapas: etapasSinHa(c?.etapas),
   ordenarCat: c?.ordenarCat !== false,
 })
 const cultivoPlantillaFromDb = c => ({
@@ -244,7 +249,7 @@ export const plantillaToDb = p => {
     nombre: p.nombre || '',
     tipo_siembra: esDoble ? 'doble' : 'simple',
     items_costo: esDoble ? [] : (Array.isArray(p.itemsCosto) ? p.itemsCosto : []),
-    etapas:      esDoble ? [] : (Array.isArray(p.etapas) ? p.etapas : []),
+    etapas:      esDoble ? [] : etapasSinHa(p.etapas),
     datos: esDoble
       ? {
           cultivoInvernal: cultivoPlantillaToDb(p.cultivoInvernal),

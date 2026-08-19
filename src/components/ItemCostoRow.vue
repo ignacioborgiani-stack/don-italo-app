@@ -165,6 +165,9 @@ const props = defineProps({
   rendimientoQq:  { type: [Number, String], default: 0 },
   precioVentaTn:  { type: [Number, String], default: 0 },
   precioEditable: { type: Boolean, default: false },   // Contables: precio manual por ítem
+  // Prorrateo por hectáreas aplicadas de la etapa (ha etapa ÷ ha lote). 1 = etapa
+  // en hectáreas completas → el costo queda igual que siempre.
+  factorEtapa:    { type: Number, default: 1 },
 })
 const emit = defineEmits(['update:item', 'remove', 'crear-insumo', 'crear-labor'])
 
@@ -219,12 +222,17 @@ const laboresFiltradas = computed(() => {
   return props.labores.filter(l => l.activo !== false && cats.includes(l.categoria))
 })
 
+// El número que se muestra y el que se guarda son USD por hectárea de LOTE:
+// el costo por ha aplicada, prorrateado por el factor de la etapa. Así la
+// columna sigue siendo sumable y el "Total: $X/ha" del pie cierra.
+const factor = it => (it?.sinProrrateo ? 1 : (parseFloat(props.factorEtapa) || 1))
 const costo = computed(() => calcularCostoItemHa(
   props.item, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores
-))
+) * factor(props.item))
 
 function recompute(it) {
-  return { ...it, costoHaCalculado: calcularCostoItemHa(it, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores) }
+  const bruto = calcularCostoItemHa(it, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores)
+  return { ...it, costoHaCalculado: bruto * factor(it) }
 }
 function emitChange(patch) { emit('update:item', recompute({ ...props.item, ...patch })) }
 

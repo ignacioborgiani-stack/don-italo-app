@@ -27,8 +27,35 @@
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span class="di-etapa-handle" title="Arrastrar para reordenar la etapa"
               style="cursor:grab;color:#9ca3af;font-size:16px;flex-shrink:0;user-select:none;touch-action:none">⠿</span>
+
+            <!-- Opciones de la etapa. Sólo con hectáreas de lote conocidas
+                 (Contables); en Proyectados el presupuesto abarca varios lotes. -->
+            <q-btn v-if="haLoteNum > 0" flat dense round size="sm" icon="more_vert"
+              color="grey-7" style="flex-shrink:0" title="Opciones de la etapa">
+              <q-menu anchor="bottom left" self="top left" style="border-radius:10px;border:1px solid #d4cfc4">
+                <div style="padding:12px 14px;width:250px">
+                  <label class="di-lbl" style="font-size:11px;font-weight:600;color:#6b7280">Hectáreas aplicadas</label>
+                  <input type="number" step="any" min="0" :value="g.haAplicadas ?? ''"
+                    @input="setHaEtapa(g, $event.target.value)" :placeholder="String(haLoteNum)"
+                    class="di-inp"
+                    style="width:100%;margin-top:4px;padding:6px 10px;border:1px solid #d4cfc4;border-radius:7px;font-family:inherit;font-size:13px;text-align:right"/>
+                  <p style="font-size:11px;color:#9ca3af;margin:6px 0 0;line-height:1.35">
+                    Por defecto se aplica sobre las {{ fmtNum(haLoteNum) }} ha del lote.
+                    Puede ser mayor: dos pasadas sobre {{ fmtNum(haLoteNum) }} ha son {{ fmtNum(haLoteNum * 2) }}.
+                  </p>
+                  <q-btn v-if="g.haAplicadas != null && g.haAplicadas !== ''"
+                    flat dense size="sm" color="primary" label="Volver a completas" class="q-mt-sm"
+                    @click="setHaEtapa(g, '')"/>
+                </div>
+              </q-menu>
+            </q-btn>
+
             <input :value="g.nombre" @input="renombrar(g, $event.target.value)" placeholder="Nombre de la etapa"
               class="di-inp" style="flex:1;font-weight:700;font-size:13px;color:#2d5a27;padding:5px 8px"/>
+            <span v-if="leyendaHa(g)" :title="`Los costos de esta etapa se prorratean a la hectárea de lote`"
+              style="font-size:11px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:999px;padding:1px 8px;white-space:nowrap;flex-shrink:0">
+              {{ leyendaHa(g) }}
+            </span>
             <span style="font-size:11px;color:#6b7280;white-space:nowrap">{{ g.items.length }} ít · <b style="color:#dc2626">{{ fmtUSD(totalEtapa(g)) }}</b>/ha</span>
             <button @click="pedirEliminar(g)" title="Eliminar etapa"
               style="background:#fff1f2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;color:#dc2626;font-size:14px;width:26px;height:26px;flex-shrink:0">×</button>
@@ -57,6 +84,7 @@
                 :rendimiento-qq="rendimientoQq"
                 :precio-venta-tn="precioVentaTn"
                 :precio-editable="precioEditable"
+                :factor-etapa="it.sinProrrateo ? 1 : factorDe(g)"
                 @update:item="upd(it.id, $event)"
                 @remove="del(it.id)"
                 @crear-insumo="onCrearInsumo(it.id, $event)"
@@ -128,9 +156,9 @@ import InsumoForm from './InsumoForm.vue'
 import LaborForm from './LaborForm.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
-import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, calcularCostoItemHa, ordenarItemsCosto } from '../utils/calculations'
+import { CATEGORIA_A_FAMILIAS, LABOR_CATEGORIA_MAP, calcularCostoItemHa, ordenarItemsCosto, factorEtapa } from '../utils/calculations'
 import { FAMILIAS_BASE, CATEGORIAS_LABORES } from '../utils/catalogoData'
-import { fmtUSD } from '../utils/formatters'
+import { fmtUSD, fmtNum } from '../utils/formatters'
 
 const props = defineProps({
   items:         { type: Array, default: () => [] },
@@ -139,6 +167,7 @@ const props = defineProps({
   rendimientoQq: { type: [Number, String], default: 0 },
   precioVentaTn: { type: [Number, String], default: 0 },
   precioEditable: { type: Boolean, default: false },   // Contables: permite precio manual por ítem
+  haLote:        { type: [Number, String], default: 0 },  // 0 = sin hectáreas conocidas (Proyectados)
 })
 const emit = defineEmits(['update'])
 
@@ -154,13 +183,29 @@ const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c
 const familias = computed(() => [...new Set([...FAMILIAS_BASE, ...catalogo.value.map(i => i.familia)])].sort((a, b) => a.localeCompare(b)))
 const categoriasLabores = computed(() => [...new Set([...CATEGORIAS_LABORES, ...labores.value.map(l => l.categoria)])])
 
-const calc = it => calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn, labores.value)
+// Costo por hectárea APLICADA (sin prorratear).
+const calcBruto = it => calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, tipoCambio.value, props.rendimientoQq, props.precioVentaTn, labores.value)
+
+const haLoteNum = computed(() => parseFloat(props.haLote) || 0)
+const factorDe  = g => factorEtapa(g, haLoteNum.value)
+// "34 de 50 ha" — sólo cuando la etapa no está en hectáreas completas.
+const leyendaHa = g => {
+  const h = parseFloat(g?.haAplicadas)
+  if (!(h > 0) || !haLoteNum.value || h === haLoteNum.value) return ''
+  return `${fmtNum(h)} de ${fmtNum(haLoteNum.value)} ha`
+}
+// Costo por hectárea de LOTE: es el número sumable de la columna.
+const calcEnGrupo = (it, g) => calcBruto(it) * (it.sinProrrateo ? 1 : factorDe(g))
 
 const ordenarCat = ref(props.ordenarCat)
 
 // ── Estado local: etapas con sus ítems (estructura anidada para el drag&drop) ──
 // Normaliza datos heredados: ids faltantes y ítems sin etapa → etapa "General".
 function buildGrupos() {
+  let etapas = (props.etapas || []).map(e => (e.id ? { ...e } : { ...e, id: uid() }))
+  const haL = parseFloat(props.haLote) || 0
+  const factorGuardado = it => it?.sinProrrateo ? 1 : factorEtapa(etapas.find(e => e.id === it?.etapa), haL)
+
   const items = (props.items || []).map(it => {
     const base = it.id ? { ...it } : { ...it, id: uid() }
     // Contables: al ABRIR un ítem existente vinculado a un insumo, precargar el
@@ -168,14 +213,16 @@ function buildGrupos() {
     // Así, guardar sin tocar nada preserva el costo (calcularCostoItemHa = precioUnit × dosis).
     // El canon de HT queda afuera: su precioUnit es el precio POR HT y ya viene
     // guardado en el ítem; reconstruirlo desde la dosis lo corrompería.
+    // Ojo: costoHaCalculado está PRORRATEADO a la ha de lote, así que hay que
+    // dividir también por el factor de la etapa para recuperar el precio unitario.
     if (props.precioEditable && base.insumoId && !base.modoHT) {
       const dosis = parseFloat(base.dosis) || 0
       const chc = parseFloat(base.costoHaCalculado)
-      if (dosis > 0 && Number.isFinite(chc)) base.precioUnit = chc / dosis
+      const f = factorGuardado(base)
+      if (dosis > 0 && f > 0 && Number.isFinite(chc)) base.precioUnit = chc / (dosis * f)
     }
     return base
   })
-  let etapas = (props.etapas || []).map(e => (e.id ? { ...e } : { ...e, id: uid() }))
   const etapaIds = new Set(etapas.map(e => e.id))
   const sinEtapa = items.some(it => !it.etapa || !etapaIds.has(it.etapa))
   if (sinEtapa || (!etapas.length && items.length)) {
@@ -183,15 +230,15 @@ function buildGrupos() {
     if (!general) { general = { id: uid(), nombre: 'General' }; etapas.unshift(general); etapaIds.add(general.id) }
     for (const it of items) if (!it.etapa || !etapaIds.has(it.etapa)) it.etapa = general.id
   }
-  let grp = etapas.map(e => ({ id: e.id, nombre: e.nombre, items: items.filter(it => it.etapa === e.id) }))
+  let grp = etapas.map(e => ({ id: e.id, nombre: e.nombre, haAplicadas: e.haAplicadas ?? null, items: items.filter(it => it.etapa === e.id) }))
   if (ordenarCat.value) grp.forEach(g => { g.items = ordenarItemsCosto(g.items) })
   return grp
 }
 const grupos = ref(buildGrupos())
 
 const allItems = computed(() => grupos.value.flatMap(g => g.items))
-const total = computed(() => allItems.value.reduce((s, it) => s + calc(it), 0))
-const totalEtapa = g => g.items.reduce((s, it) => s + calc(it), 0)
+const totalEtapa = g => g.items.reduce((s, it) => s + calcEnGrupo(it, g), 0)
+const total = computed(() => grupos.value.reduce((s, g) => s + totalEtapa(g), 0))
 
 // Estampa la etapa en cada ítem, ordena por categoría si corresponde y emite al padre.
 function syncUp() {
@@ -201,7 +248,14 @@ function syncUp() {
   }
   emit('update', {
     items: grupos.value.flatMap(g => g.items),
-    etapas: grupos.value.map(g => ({ id: g.id, nombre: g.nombre })),
+    // `haAplicadas` va sólo si está seteada: una etapa en hectáreas completas
+    // se guarda exactamente como antes, sin la clave.
+    etapas: grupos.value.map(g => {
+      const e = { id: g.id, nombre: g.nombre }
+      const h = parseFloat(g.haAplicadas)
+      if (h > 0) e.haAplicadas = h
+      return e
+    }),
     ordenarCat: ordenarCat.value,
   })
 }
@@ -216,8 +270,15 @@ watch(ordenarCat, v => {
 })
 
 // ── Etapas ────────────────────────────────────────────────────────
-function addEtapa() { grupos.value.push({ id: uid(), nombre: '', items: [] }); syncUp() }
+function addEtapa() { grupos.value.push({ id: uid(), nombre: '', haAplicadas: null, items: [] }); syncUp() }
 function renombrar(g, nombre) { g.nombre = nombre; syncUp() }
+// Hectáreas aplicadas de la etapa. Vacío = hectáreas completas del lote.
+// A propósito SIN tope: aplicar dos veces sobre 50 ha son 100 ha, caso válido.
+function setHaEtapa(g, v) {
+  const n = parseFloat(v)
+  g.haAplicadas = (v === '' || v == null || !(n > 0)) ? null : n
+  syncUp()
+}
 function pedirEliminar(g) {
   if (g.items.length) eliminarRef.value = g
   else { grupos.value = grupos.value.filter(x => x !== g); syncUp() }
@@ -255,7 +316,7 @@ async function onSaveInsumo(form) {
   const f = findItem(crearInsumo.value.id)
   if (f) {
     const base = { ...f.g.items[f.i], insumoId: nuevo.id, nombreManual: nuevo.nombre }
-    base.costoHaCalculado = calc(base)
+    base.costoHaCalculado = calcEnGrupo(base, f.g)
     f.g.items.splice(f.i, 1, base)
     syncUp()
   }
@@ -274,7 +335,7 @@ async function onSaveLabor(form) {
     const base = { ...f.g.items[f.i], laborId: nueva.id, nombreManual: nueva.nombre }
     if (nueva.esPorcentaje) base.dosis = nueva.porcentaje ?? 8
     else if (nueva.unidadPrecio === 'ha') base.dosis = base.dosis || 1
-    base.costoHaCalculado = calc(base)
+    base.costoHaCalculado = calcEnGrupo(base, f.g)
     f.g.items.splice(f.i, 1, base)
     syncUp()
   }
