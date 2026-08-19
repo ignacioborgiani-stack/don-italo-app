@@ -17,6 +17,17 @@ const uid = () => crypto.randomUUID()
 const campanaYear  = n => { const m = String(n).match(/\d+/); return m ? parseInt(m[0], 10) : 0 }
 const ordenCampana = (a, b) => campanaYear(a) - campanaYear(b)
 
+// ── Campaña recordada, por DUEÑO ──────────────────────────────────
+// La clave lleva el user_id del dueño de la granja: entrar con otra cuenta (o
+// cambiar de granja) en el mismo navegador nunca arrastra la campaña de la otra.
+const CLAVE_CAMPANA = owner => `donitalo:campania:${owner || 'anon'}`
+function campaniaRecordada(owner) {
+  try { return localStorage.getItem(CLAVE_CAMPANA(owner)) || '' } catch { return '' }
+}
+function recordarCampania(owner, nombre) {
+  try { nombre ? localStorage.setItem(CLAVE_CAMPANA(owner), nombre) : localStorage.removeItem(CLAVE_CAMPANA(owner)) } catch { /* modo privado */ }
+}
+
 // Tipo de stock → categoría de ítem de costo contable
 const TIPO_A_CATEGORIA = {
   Semilla: 'semilla', Fertilizante: 'fertilizante',
@@ -25,7 +36,9 @@ const TIPO_A_CATEGORIA = {
 
 export const useMainStore = defineStore('main', () => {
   const sbConnected  = ref(false)
-  const campania     = ref('2024/25')
+  // Arranca VACÍA: la resuelve loadCampanas contra los datos reales de la granja.
+  // Nunca un año hardcodeado — preferimos un instante en blanco a un dato falso.
+  const campania     = ref('')
   const campanas     = ref([...CAMPAÑAS].sort(ordenCampana))
   const campanasRows = ref([])   // filas completas {id, nombre} para resolver campana_id
   // Tipo de cambio: ARS por USD (para insumos/costos cotizados en ARS).
@@ -123,18 +136,25 @@ export const useMainStore = defineStore('main', () => {
     }
     campanasRows.value = rows
     campanas.value = rows.map(c => c.nombre).sort(ordenCampana)
-    if (!campanas.value.includes(campania.value)) campania.value = campanas.value[campanas.value.length - 1] || '2024/25'
+    // Prioridad: la última que eligió el usuario EN ESTA GRANJA (si todavía
+    // existe) → la más reciente → vacío si la granja no tiene campañas.
+    // Se resuelve siempre contra `owner`, así cambiar de granja no arrastra
+    // la campaña de la anterior ni queda pegada la que había en memoria.
+    const recordada = campaniaRecordada(owner)
+    campania.value = campanas.value.includes(recordada)
+      ? recordada
+      : (campanas.value[campanas.value.length - 1] || '')
   }
 
   async function addCampana(nombre) {
     const n = (nombre || '').trim()
-    if (!n || campanas.value.includes(n)) { if (n) campania.value = n; return }
+    if (!n || campanas.value.includes(n)) { if (n) setCampania(n); return }
     const userId = getUid()
     const { data, error } = await supabase.from('campanas').insert({ user_id: userId, nombre: n }).select().single()
     if (error) throw error
     if (data) campanasRows.value = [...campanasRows.value, data]
     campanas.value = [...campanas.value, n].sort(ordenCampana)
-    campania.value = n   // arranca seleccionada y vacía
+    setCampania(n)   // arranca seleccionada y vacía (y queda recordada)
   }
 
   async function delCampana(nombre) {
@@ -144,7 +164,7 @@ export const useMainStore = defineStore('main', () => {
     if (error) throw error
     campanas.value = campanas.value.filter(c => c !== nombre)
     campanasRows.value = campanasRows.value.filter(c => c.nombre !== nombre)
-    if (campania.value === nombre) campania.value = campanas.value[campanas.value.length - 1] || ''
+    if (campania.value === nombre) setCampania(campanas.value[campanas.value.length - 1] || '')
   }
 
   // Asegura que la campaña activa tenga fila en `campanas` y devuelve su id.
@@ -271,7 +291,8 @@ export const useMainStore = defineStore('main', () => {
     sbConnected.value = false
     tipoCambioBna.value = null; tipoCambioManual.value = false
     tipoCambioActualizado.value = ''; tipoCambioError.value = ''
-    campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = '2024/25'
+    // Al salir NO se borra lo recordado: al volver a entrar te recibe donde estabas.
+    campanas.value = [...CAMPAÑAS].sort(ordenCampana); campania.value = ''
     useCatalogoStore().reset()
     useLotesMaestroStore().reset()
     useGranjaStore().reset()
@@ -468,7 +489,7 @@ export const useMainStore = defineStore('main', () => {
     }
   }
 
-  function setCampania(c) { campania.value = c }
+  function setCampania(c) { campania.value = c; recordarCampania(getOwnerId(), c) }
 
   // ── Tipo de cambio (dólar oficial BNA) ────────────────────────
   // Lee lo guardado en `configuracion`. Es el fallback si la API no responde.
