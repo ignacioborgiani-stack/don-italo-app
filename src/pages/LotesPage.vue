@@ -22,6 +22,13 @@
             </tr>
             <tr v-for="(row, i) in filas" :key="row.a.id" :style="{background:i%2===0?'#fff':'#fafaf9',borderBottom:'1px solid #f0ede8'}">
               <td style="padding:8px 12px;font-weight:600;font-size:13px">{{ row.nombre }}</td>
+              <!-- Alquiler del contrato vigente. Sin contrato, la celda queda vacía. -->
+              <td style="padding:8px 12px">
+                <span v-if="row.alquiler" :title="row.alquiler.detalle"
+                  style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;cursor:help">
+                  {{ row.alquiler.texto }}
+                </span>
+              </td>
               <td style="padding:8px 12px"><CultivoBadge :lote="row.a"/></td>
               <td style="padding:8px 12px;font-size:13px">{{ fmtNum(row.ha) }}</td>
               <template v-if="verPrecios">
@@ -42,7 +49,7 @@
           </tbody>
           <tfoot v-if="filas.length">
             <tr style="background:#2d5a27">
-              <td colspan="2" style="padding:9px 12px;color:#fff;font-weight:700;font-size:13px">TOTALES</td>
+              <td colspan="3" style="padding:9px 12px;color:#fff;font-weight:700;font-size:13px">TOTALES</td>
               <td style="padding:9px 12px;color:#fff;font-weight:700">{{ totHA.toLocaleString('es-AR') }}</td>
               <template v-if="verPrecios">
                 <td style="padding:9px 12px;color:#fff;font-weight:700">{{ fmtUSD(totC/Math.max(totHA,1)) }}</td>
@@ -225,8 +232,24 @@ const ctx = computed(() => ({
   cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
 }))
 const headers = computed(() => verPrecios.value
-  ? ['Lote','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
-  : ['Lote','Cultivo','Ha','Acciones'])
+  ? ['Lote','Alquiler','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']
+  : ['Lote','Alquiler','Cultivo','Ha','Acciones'])
+
+// Chip compacto del alquiler vigente. Sólo hay dos tipos de contrato:
+// quintales fijos (qq/ha) y porcentaje de la cosecha.
+function chipAlquiler(contrato) {
+  if (!contrato) return null
+  const cant = parseFloat(contrato.cantidad) || 0
+  const esPorc = contrato.tipoContrato === 'porcentaje_cosecha'
+  const rango = contrato.campanaInicio === contrato.campanaFin
+    ? contrato.campanaInicio
+    : `${contrato.campanaInicio} a ${contrato.campanaFin}`
+  return {
+    texto: esPorc ? `${fmtNum(cant)}%` : `${fmtNum(cant)} qq`,
+    // El cultivo de referencia puede NO ser el sembrado (se pacta en soja).
+    detalle: `${fmtNum(cant)} ${esPorc ? '% de la cosecha' : 'qq/ha'} de ${contrato.cultivoReferencia || '—'} · ${rango}`,
+  }
+}
 
 const asignarModal = ref(null)
 const verRow  = ref(null)
@@ -239,7 +262,8 @@ const filas = computed(() => store.asignaciones
     const lote = lmStore.byId(a.loteId)
     const ha = parseFloat(lote?.ha) || 0
     const contrato = store.contratoVigente(a.loteId, store.campania)
-    return { a, nombre: lote?.nombre || '—', ha, calc: calcLoteConAlquiler(a, ha, contrato, ctx.value.cultivosPrecio) }
+    return { a, nombre: lote?.nombre || '—', ha, alquiler: chipAlquiler(contrato),
+             calc: calcLoteConAlquiler(a, ha, contrato, ctx.value.cultivosPrecio) }
   })
   .sort((x, y) => x.nombre.localeCompare(y.nombre)))
 
