@@ -195,23 +195,26 @@ cubre los costos variables."* Ojo al ordenar por rinde: `null` restado da `NaN`.
 
 ### El alquiler, en el denominador con alquiler
 
-Del alquiler sólo escala con el rinde la parte por porcentaje: el ítem y el contrato . ,  y  son
-fijos (el de soja depende del precio de la soja, no de tu rinde).
+Del alquiler sólo escala con el rinde la parte por porcentaje: el ítem `porc_grano`
+y el contrato `porcentaje_cosecha`. `usd_ha`, `qq_soja` y `quintales_fijos` son
+fijos — el de quintales de soja depende del precio de la soja, no de tu rinde.
 
-Por eso hay **dos denominadores**: el visible (contribución marginal, sin alquiler)
-y uno interno que además descuenta el alquiler variable, usado sólo para el rinde
-de indiferencia CON alquiler. Helpers:  y
-; en Contables la parte variable sigue la misma rama
-que el alquiler (contrato si hay, ítem si no).
+Por eso hay **dos denominadores**: el visible (la contribución marginal, sin
+alquiler) y uno interno que además descuenta el alquiler variable, usado sólo para
+el rinde de indiferencia CON alquiler. Helpers: `alquilerVariableHaItems` y
+`alquilerVariableDeContrato`; en Contables la parte variable sigue la misma rama que
+el alquiler (del contrato si hay contrato, del ítem si no), y `calcProyDoble` la
+reparte con el mismo porcentaje que el total.
 
 Consecuencia para el usuario: dividir los costos fijos por la contribución marginal
 que se muestra **no** da el rinde con alquiler. De ahí el asterisco y el tooltip
 *"Descuenta la parte del alquiler que varía con el rinde"*.
 
-El caso sin solución se desdobla en  y ,
-porque el alquiler por porcentaje puede tumbar el rinde con alquiler con la
-contribución visible todavía positiva.  elige el texto (viven en
- para que las tres pantallas no se desincronicen).
+El caso sin solución se desdobla en `sinRindeIndifSin` y `sinRindeIndifCon`, porque
+el alquiler por porcentaje puede tumbar el rinde con alquiler con la contribución
+visible todavía positiva; decir ahí "la contribución marginal es negativa" sería
+falso. `mensajeSinRinde` elige el texto, y los dos viven en `MSG_SIN_RINDE` para que
+las tres pantallas no se desincronicen.
 
 ---
 
