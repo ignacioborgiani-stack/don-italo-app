@@ -172,28 +172,28 @@ modal Ver de Contables.
 margenContribTn = precio_USD_tn − (costos_variables_ha ÷ rinde_tn)
 ```
 
-Variables son sólo las categorías que escalan con las toneladas:
-`CATEGORIAS_VARIABLES_TN = ['cosecha', 'flete', 'comercializacion']`. Semilla,
-fertilizantes, fitosanitarios, labores, seguro y arrendamiento son fijos por
-hectárea y no entran.
+Variables son los que escalan con las toneladas: las categorías de
+`CATEGORIAS_VARIABLES_TN = ['cosecha', 'flete', 'comercializacion']` **más el canon
+de HT**, que se carga en categoría "otros" y por eso se reconoce por el flag
+`modoHT` del ítem (helper `esItemVariableTn`). Semilla, fertilizantes,
+fitosanitarios, labores, seguro y arrendamiento son fijos por hectárea y no entran.
 
-**Rinde de indiferencia** — hoy: `costo_ha ÷ precio_USD_tn`, con y sin alquiler.
+**Rinde de indiferencia** — con y sin alquiler:
 
-### ⚠️ Pendiente de corregir (B1 y B2)
+```
+rindeIndifTn = costos_fijos_ha ÷ margenContribTn
+```
 
-Dos cosas están mal a sabiendas y hay un plan acordado:
+donde `costos_fijos_ha = costo_total_ha − costos_variables_ha`, sobre la misma base
+para que no haya doble conteo. Dividir el costo total por el precio (como se hacía
+antes) se muerde la cola cuando hay costos que escalan con el rinde.
 
-**B1** — El canon de HT es un costo variable por tonelada, pero **todavía no está en
-`CATEGORIAS_VARIABLES_TN`**, así que cuenta como fijo. Falta:
-- agregarlo al conjunto variable (el filtro no puede ser sólo por categoría, porque
-  el HT es categoría "otros": `CATEGORIAS_VARIABLES_TN.includes(cat) || item.modoHT`)
-- cambiar el rinde de indiferencia a
-  `costos_fijos_ha ÷ (precio_USD_tn − costos_variables_por_tn)`.
-  La fórmula actual se muerde la cola cuando hay costos que escalan con el rinde:
-  mete en el numerador los variables de un rinde que no es el de equilibrio.
-- si la contribución marginal es ≤ 0 no existe rinde de indiferencia: devolver
-  `null` con un flag `sinRindeIndif` y mostrar en rojo *"La contribución marginal es
-  negativa: ningún rinde cubre los costos variables."*
+Si la contribución marginal **no es positiva** no existe rinde que dé cero:
+`rindeIndif*` devuelven `null` y `sinRindeIndif` queda en `true`. Las tres pantallas
+muestran un guión y, en rojo, *"La contribución marginal es negativa: ningún rinde
+cubre los costos variables."* Ojo al ordenar por rinde: `null` restado da `NaN`.
+
+### ⚠️ Pendiente de corregir (B2)
 
 **B2** — El arrendamiento **`porc_grano`** y el contrato **`porcentaje_cosecha`**
 escalan con el rinde y hoy se tratan como fijos. Deben moverse al lado variable,
@@ -333,7 +333,7 @@ salen como `[object Object]`.
    hectáreas del lote, no las de la etapa. Falta la columna "Ha aplicadas" y un
    tercer filtro por ella en los SUMIFS. Decidido: agrupar por Insumo + Unidad +
    Ha aplicadas, para que cada fila cierre sola.
-5. **B1 y B2 de los indicadores** — ver la sección de Indicadores.
+5. **B2 de los indicadores** — el arrendamiento por porcentaje del grano sigue tratado como fijo. Ver la sección de Indicadores. (B1 ya está hecho.)
 6. **Confirmar la etapa A de hectáreas aplicadas en la app real** con datos productivos.
 7. **Confirmar que la migración 14 se corrió.**
 
