@@ -193,16 +193,25 @@ Si la contribución marginal **no es positiva** no existe rinde que dé cero:
 muestran un guión y, en rojo, *"La contribución marginal es negativa: ningún rinde
 cubre los costos variables."* Ojo al ordenar por rinde: `null` restado da `NaN`.
 
-### ⚠️ Pendiente de corregir (B2)
+### El alquiler, en el denominador con alquiler
 
-**B2** — El arrendamiento **`porc_grano`** y el contrato **`porcentaje_cosecha`**
-escalan con el rinde y hoy se tratan como fijos. Deben moverse al lado variable,
-pero **sólo para el denominador del rinde de indiferencia con alquiler**: la
-contribución marginal que se muestra sigue **sin** alquiler. Requiere un tooltip
-aclarando *"Descuenta la parte del alquiler que varía con el rinde"*, porque si no,
-dividir los fijos por la contribución visible no da el número de pantalla.
+Del alquiler sólo escala con el rinde la parte por porcentaje: el ítem y el contrato . ,  y  son
+fijos (el de soja depende del precio de la soja, no de tu rinde).
 
-`usd_ha`, `qq_soja` y `quintales_fijos` son fijos respecto del rinde y quedan como están.
+Por eso hay **dos denominadores**: el visible (contribución marginal, sin alquiler)
+y uno interno que además descuenta el alquiler variable, usado sólo para el rinde
+de indiferencia CON alquiler. Helpers:  y
+; en Contables la parte variable sigue la misma rama
+que el alquiler (contrato si hay, ítem si no).
+
+Consecuencia para el usuario: dividir los costos fijos por la contribución marginal
+que se muestra **no** da el rinde con alquiler. De ahí el asterisco y el tooltip
+*"Descuenta la parte del alquiler que varía con el rinde"*.
+
+El caso sin solución se desdobla en  y ,
+porque el alquiler por porcentaje puede tumbar el rinde con alquiler con la
+contribución visible todavía positiva.  elige el texto (viven en
+ para que las tres pantallas no se desincronicen).
 
 ---
 
@@ -333,8 +342,7 @@ salen como `[object Object]`.
    hectáreas del lote, no las de la etapa. Falta la columna "Ha aplicadas" y un
    tercer filtro por ella en los SUMIFS. Decidido: agrupar por Insumo + Unidad +
    Ha aplicadas, para que cada fila cierre sola.
-5. **B2 de los indicadores** — el arrendamiento por porcentaje del grano sigue tratado como fijo. Ver la sección de Indicadores. (B1 ya está hecho.)
-6. **Confirmar la etapa A de hectáreas aplicadas en la app real** con datos productivos.
+5. **Confirmar la etapa A de hectáreas aplicadas en la app real** con datos productivos.
 7. **Confirmar que la migración 14 se corrió.**
 
 **Menores**
