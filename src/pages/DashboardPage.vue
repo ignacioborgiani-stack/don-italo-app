@@ -54,14 +54,22 @@
           <div v-if="r.tn > 0" style="font-size:11px;color:#9ca3af;margin-top:2px">
             {{ Math.round(r.kg) }} kg/ha
           </div>
+          <!-- El chip es angosto: acá va la versión corta y la frase completa
+               va una sola vez debajo del bloque. -->
+          <div v-else-if="r.sinRindeIndif" style="font-size:10px;color:#dc2626;margin-top:2px;line-height:1.25">
+            contribución marginal negativa
+          </div>
         </div>
       </div>
       <p v-else style="font-size:13px;color:#9ca3af;margin:6px 0 0">
         Sin presupuestos cargados para {{ store.campania }} — cargalos en Costos Proyectados.
       </p>
 
+      <p v-if="rindesIndif.some(r => r.sinRindeIndif)" style="font-size:11px;color:#dc2626;margin:10px 0 0">
+        La contribución marginal es negativa: ningún rinde cubre los costos variables.
+      </p>
       <p style="font-size:10px;color:#9ca3af;margin:12px 0 0">
-        Rinde que hace cero el resultado incluyendo el alquiler: costos totales/ha ÷ precio de venta.
+        Rinde que hace cero el resultado incluyendo el alquiler: costos fijos/ha ÷ contribución marginal/tn.
       </p>
     </div>
 
@@ -175,7 +183,7 @@ const rindesIndif = computed(() => {
         out.push({
           key: `${p.cultivo}|${parte.nombre}`, nombre: parte.nombre, doble: p.cultivo,
           color: getCultivoColor(parte.nombre),
-          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg,
+          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg, sinRindeIndif: parte.ind.sinRindeIndif,
         })
       }
     } else {
@@ -188,10 +196,12 @@ const rindesIndif = computed(() => {
       out.push({
         key: p.cultivo, nombre: p.cultivo, doble: null,
         color: getCultivoColor(p.cultivo),
-        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg,
+        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg, sinRindeIndif: ind.sinRindeIndif,
       })
     }
   }
-  return out.sort((a, b) => b.tn - a.tn)
+  // Los que no tienen rinde de indiferencia (tn = null) van al final: restarlos
+  // daría NaN y el orden quedaría indefinido.
+  return out.sort((a, b) => (b.tn ?? -1) - (a.tn ?? -1))
 })
 </script>

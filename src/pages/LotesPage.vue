@@ -129,7 +129,10 @@
               </tbody>
             </table>
           </div>
-          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos/ha ÷ precio (tn/ha y kg). Contribución marginal/tn = precio − costos variables por tn (sólo cosecha y flete ÷ rinde; los costos por ha no entran).</p>
+          <p v-if="indicadoresVer.some(r => r.ind.sinRindeIndif)" style="font-size:11px;color:#dc2626;margin:6px 0 0">
+            La contribución marginal es negativa: ningún rinde cubre los costos variables.
+          </p>
+          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos fijos/ha ÷ contribución marginal/tn. Contribución marginal/tn = precio − costos variables por tn (cosecha, flete, comercialización y canon HT ÷ rinde; los costos por ha no entran).</p>
         </div>
 
         <!-- Insumos reales del lote -->

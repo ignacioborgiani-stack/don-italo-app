@@ -66,6 +66,9 @@
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(d.ind.rindeIndifSinTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. c/alq</span><b>{{ fmtRinde(d.ind.rindeIndifConTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b></div>
+                <p v-if="d.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">
+                  La contribución marginal es negativa: ningún rinde cubre los costos variables.
+                </p>
               </div>
               <!-- Desglose del doble -->
               <div v-else style="background:#f9fafb;border:1px solid #eef0f2;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#374151">
@@ -105,6 +108,9 @@
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(pt.ind.rindeIndifSinTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. c/alq</span><b>{{ fmtRinde(pt.ind.rindeIndifConTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:pt.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(pt.ind.margenContribTn) }}/tn</b></div>
+                <p v-if="pt.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">
+                  La contribución marginal es negativa: ningún rinde cubre los costos variables.
+                </p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px solid #e5e7eb;margin-top:4px;padding-top:5px">
                   <span>🏠 Alquiler asignado</span><b>{{ fmtUSD(pt.alquilerHa) }}/ha</b>
                 </div>

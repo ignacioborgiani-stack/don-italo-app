@@ -328,8 +328,12 @@ export const alquilerHaItems = cultivo =>
 // fitosanitarios, labores, seguro, arrendamiento) es fijo POR HECTÁREA — se
 // gasta igual sea cual sea el rinde — y NO entra.
 export const CATEGORIAS_VARIABLES_TN = ['cosecha', 'flete', 'comercializacion']
+// El canon de HT también escala con las toneladas (precio_HT ÷ tn_por_HT es un
+// costo por tn), pero se carga en categoría 'otros', así que no alcanza con
+// mirar la categoría: hay que reconocerlo por el flag del ítem.
+export const esItemVariableTn = it => CATEGORIAS_VARIABLES_TN.includes(it?.categoria) || !!it?.modoHT
 export const costoVariableHaItems = cultivo =>
-  (cultivo?.itemsCosto || []).filter(it => CATEGORIAS_VARIABLES_TN.includes(it.categoria)).reduce((s, it) => s + _itemHa(it), 0)
+  (cultivo?.itemsCosto || []).filter(esItemVariableTn).reduce((s, it) => s + _itemHa(it), 0)
 
 // Total USD del alquiler del lote según el contrato (depende del precio del cultivo de referencia).
 //   quintales_fijos:    cantidad(qq/ha) × ha / 10 (→tn) × precioRef(USD/tn)
@@ -408,17 +412,38 @@ export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, costoVar
   const precio = parseFloat(precioTn) || 0
   const rindeTn = (parseFloat(rindeQq) || 0) / 10
   const sinHa = parseFloat(costoSinAlqHa) || 0
-  const conHa = sinHa + (parseFloat(alquilerHa) || 0)
-  const indif = costo => precio > 0 ? costo / precio : 0   // tn/ha
-  const sinTn = indif(sinHa), conTn = indif(conHa)
+  const alqHa = parseFloat(alquilerHa) || 0
+  const conHa = sinHa + alqHa
+
   // Contribución marginal CLÁSICA: precio − costos variables por tonelada.
-  // Los costos por ha (semilla, fert, fito, labores, seguro, alquiler) son
-  // fijos por hectárea y no entran acá (sí en el rinde de indiferencia).
-  const costoVarTn = rindeTn > 0 ? (parseFloat(costoVariableHa) || 0) / rindeTn : 0
+  // Variables = los que escalan con las toneladas (cosecha, flete,
+  // comercialización y canon HT). Semilla, fertilizantes, fitosanitarios,
+  // labores, seguro y alquiler son fijos por hectárea y no entran acá.
+  const varHa = parseFloat(costoVariableHa) || 0
+  const costoVarTn = rindeTn > 0 ? varHa / rindeTn : 0
+  const margenContribTn = precio - costoVarTn
+
+  // Rinde de indiferencia = costos FIJOS/ha ÷ contribución marginal/tn.
+  // Dividir el costo TOTAL por el precio se muerde la cola cuando hay costos
+  // que escalan con el rinde: mete en el numerador los variables de un rinde
+  // que no es el de equilibrio, y devuelve un rinde más alto que el real.
+  //
+  // Si la contribución marginal no es positiva NO existe rinde que dé cero:
+  // cada tonelada extra cuesta más de lo que aporta. Devuelve null (no 0, no
+  // Infinity, no NaN) y avisa con `sinRindeIndif` para que la UI lo explique.
+  const sinRindeIndif = !(margenContribTn > 0)
+  const indif = totalHa => sinRindeIndif ? null : Math.max(0, totalHa - varHa) / margenContribTn
+  const sinTn = indif(sinHa)
+  const conTn = indif(conHa)
+  const enKg  = tn => tn == null ? null : tn * 1000
+
   return {
-    costoSinAlqHa: sinHa, alquilerHa: parseFloat(alquilerHa) || 0, costoConAlqHa: conHa,
-    rindeIndifSinTn: sinTn, rindeIndifSinKg: sinTn * 1000,
-    rindeIndifConTn: conTn, rindeIndifConKg: conTn * 1000,
-    costoVariableTn: costoVarTn, margenContribTn: precio - costoVarTn,
+    costoSinAlqHa: sinHa, alquilerHa: alqHa, costoConAlqHa: conHa,
+    costoFijoSinAlqHa: Math.max(0, sinHa - varHa),
+    costoFijoConAlqHa: Math.max(0, conHa - varHa),
+    rindeIndifSinTn: sinTn, rindeIndifSinKg: enKg(sinTn),
+    rindeIndifConTn: conTn, rindeIndifConKg: enKg(conTn),
+    costoVariableHa: varHa, costoVariableTn: costoVarTn,
+    margenContribTn, sinRindeIndif,
   }
 }
