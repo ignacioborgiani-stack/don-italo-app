@@ -64,10 +64,9 @@
               <div v-if="!d.esDoble" style="background:#f9fafb;border:1px solid #eef0f2;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#374151">
                 <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 4px">Indicadores</p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(d.ind.rindeIndifSinTn) }}</b></div>
-                <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. c/alq</span><b>{{ fmtRinde(d.ind.rindeIndifConTn) }}</b></div>
+                <div style="display:flex;justify-content:space-between;padding:2px 0"><span :title="TIP_ALQ">Rinde indif. c/alq *</span><b>{{ fmtRinde(d.ind.rindeIndifConTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b></div>
-                <p v-if="d.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">
-                  La contribución marginal es negativa: ningún rinde cubre los costos variables.
+                <p v-if="d.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">{{ d.ind.mensajeSinRinde }}
                 </p>
               </div>
               <!-- Desglose del doble -->
@@ -106,10 +105,9 @@
               <div style="background:#f9fafb;border:1px solid #eef0f2;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#374151">
                 <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 4px">Indicadores · {{ pt.nombre }}</p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(pt.ind.rindeIndifSinTn) }}</b></div>
-                <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. c/alq</span><b>{{ fmtRinde(pt.ind.rindeIndifConTn) }}</b></div>
+                <div style="display:flex;justify-content:space-between;padding:2px 0"><span :title="TIP_ALQ">Rinde indif. c/alq *</span><b>{{ fmtRinde(pt.ind.rindeIndifConTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:pt.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(pt.ind.margenContribTn) }}/tn</b></div>
-                <p v-if="pt.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">
-                  La contribución marginal es negativa: ningún rinde cubre los costos variables.
+                <p v-if="pt.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">{{ pt.ind.mensajeSinRinde }}
                 </p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px solid #e5e7eb;margin-top:4px;padding-top:5px">
                   <span>🏠 Alquiler asignado</span><b>{{ fmtUSD(pt.alquilerHa) }}/ha</b>
@@ -300,7 +298,7 @@ import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor, TODOS_CULTIVARES, CULTIVARES_INVERNALES, CULTIVARES_ESTIVALES } from '../utils/constants'
-import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, costoVariableHaItems, indicadoresCultivo, calcProyDoble } from '../utils/calculations'
+import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems, indicadoresCultivo, calcProyDoble } from '../utils/calculations'
 import { nombreDoble } from '../utils/mappers'
 import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
@@ -355,6 +353,7 @@ const barData = computed(() => proyCampania.value.map(p => {
   // Indicadores: el alquiler de Proyectados sale del ítem 'arrendamiento' del presupuesto.
   const ind = indicadoresCultivo({
     costoSinAlqHa: costoHaSinAlquiler(p), alquilerHa: alquilerHaItems(p),
+    alquilerVariableHa: alquilerVariableHaItems(p),
     costoVariableHa: costoVariableHaItems(p),
     precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
   })
@@ -374,6 +373,7 @@ const tabsDe = d => [
   ...d.partes.map(pt => ({ key: pt.nombre, label: `${pt.emoji} ${pt.nombre}` })),
 ]
 
+const TIP_ALQ = 'Descuenta la parte del alquiler que varía con el rinde'
 const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).toLocaleString('es-AR')} kg)` : '—'
 
 const totalMB = computed(() => barData.value.reduce((s, d) => s + d.margenTotal, 0))

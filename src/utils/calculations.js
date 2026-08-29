@@ -321,6 +321,19 @@ export const costoHaSinAlquiler = cultivo =>
 export const alquilerHaItems = cultivo =>
   (cultivo?.itemsCosto || []).filter(it => it.categoria === 'arrendamiento').reduce((s, it) => s + _itemHa(it), 0)
 
+// No todo el alquiler es fijo. De las tres modalidades del ítem, sólo
+// 'porc_grano' (% del grano) escala con el rinde; 'usd_ha' es un monto fijo y
+// 'qq_soja' depende del precio de la SOJA, no del rinde de este cultivo.
+export const esAlquilerVariable = it =>
+  it?.categoria === 'arrendamiento' && it?.parametroEspecial?.modalidad === 'porc_grano'
+export const alquilerVariableHaItems = cultivo =>
+  (cultivo?.itemsCosto || []).filter(esAlquilerVariable).reduce((s, it) => s + _itemHa(it), 0)
+
+// Lo mismo para los contratos de Contables: 'porcentaje_cosecha' escala con el
+// rinde, 'quintales_fijos' no. Devuelve cuánto del alquiler ya calculado es variable.
+export const alquilerVariableDeContrato = (contrato, alquilerHa) =>
+  contrato?.tipoContrato === 'porcentaje_cosecha' ? (parseFloat(alquilerHa) || 0) : 0
+
 // Categorías cuyo costo escala con las TONELADAS producidas: son los costos
 // VARIABLES de la contribución marginal. Cosecha (si es % del valor ya es por
 // tn; si es monto fijo/ha, dividirlo por el rinde lo lleva a USD/tn), flete
@@ -378,8 +391,11 @@ export function calcProyDoble(p) {
   const rE = parseFloat(p?.repartoEstival ?? 50) || 0
   const sum = (rI + rE) || 100
   const alquilerTotalHa = alquilerHaItems(p?.cultivoInvernal) + alquilerHaItems(p?.cultivoEstival)
+  // La parte del alquiler que escala con el rinde se junta y se reparte con el
+  // MISMO porcentaje que el total, para que las dos cifras queden consistentes.
+  const alqVarTotalHa = alquilerVariableHaItems(p?.cultivoInvernal) + alquilerVariableHaItems(p?.cultivoEstival)
 
-  const parte = (cultivo, alquilerHa) => {
+  const parte = (cultivo, alquilerHa, alquilerVariableHa) => {
     const costoSinAlqHa = costoHaSinAlquiler(cultivo)
     const costoHa   = costoSinAlqHa + alquilerHa
     const ingresoHa = calcIngresoHa(cultivo)
@@ -388,14 +404,14 @@ export function calcProyDoble(p) {
       tipo: cultivo?.tipo || 'estival',
       costoSinAlqHa, alquilerHa, costoHa, ingresoHa, margenHa: ingresoHa - costoHa,
       ind: indicadoresCultivo({
-        costoSinAlqHa, alquilerHa, costoVariableHa: costoVariableHaItems(cultivo),
+        costoSinAlqHa, alquilerHa, alquilerVariableHa, costoVariableHa: costoVariableHaItems(cultivo),
         precioTn: cultivo?.precioVentaTn, rindeQq: cultivo?.rendimientoQq,
       }),
     }
   }
 
-  const inv = parte(p?.cultivoInvernal, alquilerTotalHa * rI / sum)
-  const est = parte(p?.cultivoEstival,  alquilerTotalHa * rE / sum)
+  const inv = parte(p?.cultivoInvernal, alquilerTotalHa * rI / sum, alqVarTotalHa * rI / sum)
+  const est = parte(p?.cultivoEstival,  alquilerTotalHa * rE / sum, alqVarTotalHa * rE / sum)
   return {
     alquilerTotalHa,
     costoHa:   inv.costoHa + est.costoHa,
@@ -408,42 +424,65 @@ export function calcProyDoble(p) {
 // Indicadores por cultivo: rinde de indiferencia (con/sin alquiler) y contribución marginal/tn.
 // `costoVariableHa` = SOLO las categorías que escalan con las toneladas (ver
 // CATEGORIAS_VARIABLES_TN); los llamadores lo obtienen con costoVariableHaItems.
-export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, costoVariableHa = 0, precioTn = 0, rindeQq = 0 }) {
+// Mensajes del caso sin solución. Viven acá para que las tres pantallas que
+// muestran indicadores no repitan (ni desincronicen) la misma explicación.
+export const MSG_SIN_RINDE = {
+  sinAlquiler: 'La contribución marginal es negativa: ningún rinde cubre los costos variables.',
+  soloConAlquiler: 'Con el alquiler por porcentaje del grano no hay rinde que cubra los costos: se lleva toda la contribución marginal.',
+}
+
+export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, alquilerVariableHa = 0, costoVariableHa = 0, precioTn = 0, rindeQq = 0 }) {
   const precio = parseFloat(precioTn) || 0
   const rindeTn = (parseFloat(rindeQq) || 0) / 10
   const sinHa = parseFloat(costoSinAlqHa) || 0
   const alqHa = parseFloat(alquilerHa) || 0
   const conHa = sinHa + alqHa
-
-  // Contribución marginal CLÁSICA: precio − costos variables por tonelada.
-  // Variables = los que escalan con las toneladas (cosecha, flete,
-  // comercialización y canon HT). Semilla, fertilizantes, fitosanitarios,
-  // labores, seguro y alquiler son fijos por hectárea y no entran acá.
   const varHa = parseFloat(costoVariableHa) || 0
+  // La parte variable nunca puede superar al alquiler total (si el llamador se
+  // equivoca, el resto quedaría como fijo negativo).
+  const alqVarHa = Math.min(Math.max(0, parseFloat(alquilerVariableHa) || 0), alqHa)
+
+  // ── Denominador VISIBLE: sin alquiler. Es la contribución marginal clásica
+  // y no cambia. Variables = cosecha, flete, comercialización y canon HT.
   const costoVarTn = rindeTn > 0 ? varHa / rindeTn : 0
   const margenContribTn = precio - costoVarTn
 
-  // Rinde de indiferencia = costos FIJOS/ha ÷ contribución marginal/tn.
-  // Dividir el costo TOTAL por el precio se muerde la cola cuando hay costos
-  // que escalan con el rinde: mete en el numerador los variables de un rinde
-  // que no es el de equilibrio, y devuelve un rinde más alto que el real.
+  // ── Denominador CON ALQUILER: suma la parte del alquiler que escala con el
+  // rinde ('porc_grano' en los ítems, 'porcentaje_cosecha' en los contratos).
+  // Es un segundo denominador, interno: NO se muestra como contribución marginal.
+  const varConAlqHa = varHa + alqVarHa
+  const costoVarConAlqTn = rindeTn > 0 ? varConAlqHa / rindeTn : 0
+  const margenContribConAlqTn = precio - costoVarConAlqTn
+
+  // Rinde de indiferencia = costos FIJOS/ha ÷ contribución marginal/tn, cada uno
+  // con su denominador. Dividir el costo TOTAL por el precio se muerde la cola
+  // cuando hay costos que escalan con el rinde.
   //
-  // Si la contribución marginal no es positiva NO existe rinde que dé cero:
-  // cada tonelada extra cuesta más de lo que aporta. Devuelve null (no 0, no
-  // Infinity, no NaN) y avisa con `sinRindeIndif` para que la UI lo explique.
-  const sinRindeIndif = !(margenContribTn > 0)
-  const indif = totalHa => sinRindeIndif ? null : Math.max(0, totalHa - varHa) / margenContribTn
-  const sinTn = indif(sinHa)
-  const conTn = indif(conHa)
+  // Si el denominador no es positivo NO existe rinde que dé cero: cada tonelada
+  // extra cuesta más de lo que aporta. Devuelve null (no 0, no Infinity, no NaN).
+  const fijos = (totalHa, variableHa) => Math.max(0, totalHa - variableHa)
+  const indif = (fijosHa, contrib) => contrib > 0 ? fijosHa / contrib : null
+  const sinTn = indif(fijos(sinHa, varHa), margenContribTn)
+  const conTn = indif(fijos(conHa, varConAlqHa), margenContribConAlqTn)
   const enKg  = tn => tn == null ? null : tn * 1000
 
+  // El alquiler variable puede tumbar SÓLO el rinde con alquiler, con la
+  // contribución visible todavía en positivo: ahí el mensaje es otro.
+  const sinRindeIndifSin = sinTn === null
+  const sinRindeIndifCon = conTn === null
+
   return {
-    costoSinAlqHa: sinHa, alquilerHa: alqHa, costoConAlqHa: conHa,
-    costoFijoSinAlqHa: Math.max(0, sinHa - varHa),
-    costoFijoConAlqHa: Math.max(0, conHa - varHa),
+    costoSinAlqHa: sinHa, alquilerHa: alqHa, alquilerVariableHa: alqVarHa, costoConAlqHa: conHa,
+    costoFijoSinAlqHa: fijos(sinHa, varHa),
+    costoFijoConAlqHa: fijos(conHa, varConAlqHa),
     rindeIndifSinTn: sinTn, rindeIndifSinKg: enKg(sinTn),
     rindeIndifConTn: conTn, rindeIndifConKg: enKg(conTn),
     costoVariableHa: varHa, costoVariableTn: costoVarTn,
-    margenContribTn, sinRindeIndif,
+    margenContribTn,                       // el visible: SIN alquiler
+    margenContribConAlqTn,                 // interno: denominador del rinde c/alq
+    sinRindeIndifSin, sinRindeIndifCon,
+    sinRindeIndif: sinRindeIndifSin || sinRindeIndifCon,
+    mensajeSinRinde: sinRindeIndifSin ? MSG_SIN_RINDE.sinAlquiler
+      : sinRindeIndifCon ? MSG_SIN_RINDE.soloConAlquiler : '',
   }
 }

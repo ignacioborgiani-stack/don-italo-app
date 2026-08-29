@@ -65,9 +65,7 @@
         Sin presupuestos cargados para {{ store.campania }} — cargalos en Costos Proyectados.
       </p>
 
-      <p v-if="rindesIndif.some(r => r.sinRindeIndif)" style="font-size:11px;color:#dc2626;margin:10px 0 0">
-        La contribución marginal es negativa: ningún rinde cubre los costos variables.
-      </p>
+      <p v-if="mensajeSinRinde" style="font-size:11px;color:#dc2626;margin:10px 0 0">{{ mensajeSinRinde }}</p>
       <p style="font-size:10px;color:#9ca3af;margin:12px 0 0">
         Rinde que hace cero el resultado incluyendo el alquiler: costos fijos/ha ÷ contribución marginal/tn.
       </p>
@@ -116,7 +114,7 @@ import SvgVBar  from '../components/charts/SvgVBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcLoteConAlquiler, getCultivoLabel, getLoteName, indicadoresCultivo, calcProyDoble,
-         costoHaSinAlquiler, alquilerHaItems, costoVariableHaItems } from '../utils/calculations'
+         costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const tabs = [{ key: 'general', label: 'General' }, { key: 'encargos', label: 'Encargar insumos' }]
@@ -183,20 +181,21 @@ const rindesIndif = computed(() => {
         out.push({
           key: `${p.cultivo}|${parte.nombre}`, nombre: parte.nombre, doble: p.cultivo,
           color: getCultivoColor(parte.nombre),
-          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg, sinRindeIndif: parte.ind.sinRindeIndif,
+          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg, sinRindeIndif: parte.ind.sinRindeIndif, mensaje: parte.ind.mensajeSinRinde,
         })
       }
     } else {
       const ind = indicadoresCultivo({
         costoSinAlqHa: costoHaSinAlquiler(p),
         alquilerHa: alquilerHaItems(p),
+        alquilerVariableHa: alquilerVariableHaItems(p),
         costoVariableHa: costoVariableHaItems(p),
         precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
       })
       out.push({
         key: p.cultivo, nombre: p.cultivo, doble: null,
         color: getCultivoColor(p.cultivo),
-        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg, sinRindeIndif: ind.sinRindeIndif,
+        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg, sinRindeIndif: ind.sinRindeIndif, mensaje: ind.mensajeSinRinde,
       })
     }
   }

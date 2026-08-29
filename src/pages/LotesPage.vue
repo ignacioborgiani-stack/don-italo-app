@@ -115,7 +115,7 @@
                 <tr style="background:#f9fafb;color:#6b7280">
                   <th style="text-align:left;padding:6px 8px">Cultivo</th>
                   <th style="text-align:right;padding:6px 8px">Rinde indif. s/alq</th>
-                  <th style="text-align:right;padding:6px 8px">Rinde indif. c/alq</th>
+                  <th style="text-align:right;padding:6px 8px" title="Descuenta la parte del alquiler que varía con el rinde">Rinde indif. c/alq *</th>
                   <th style="text-align:right;padding:6px 8px">Margen contrib./tn</th>
                 </tr>
               </thead>
@@ -129,8 +129,9 @@
               </tbody>
             </table>
           </div>
-          <p v-if="indicadoresVer.some(r => r.ind.sinRindeIndif)" style="font-size:11px;color:#dc2626;margin:6px 0 0">
-            La contribución marginal es negativa: ningún rinde cubre los costos variables.
+          <p v-if="mensajeSinRindeVer" style="font-size:11px;color:#dc2626;margin:6px 0 0">{{ mensajeSinRindeVer }}</p>
+          <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">
+            * El rinde con alquiler descuenta la parte del alquiler que varía con el rinde, así que no sale de dividir por la contribución marginal de al lado.
           </p>
           <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Rinde de indiferencia = costos fijos/ha ÷ contribución marginal/tn. Contribución marginal/tn = precio − costos variables por tn (cosecha, flete, comercialización y canon HT ÷ rinde; los costos por ha no entran).</p>
         </div>
@@ -220,7 +221,7 @@ import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
-import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, costoVariableHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
+import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, alquilerVariableDeContrato, costoVariableHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -326,11 +327,18 @@ const indicadoresVer = computed(() => {
   if (!verRow.value) return []
   const a = verRow.value.a
   const alq = alquilerVer.value
+  const contrato = store.contratoVigente(a.loteId, store.campania)
   const mk = (cultivo, alquilerHaContrato) => {
     if (!cultivo?.nombre) return null
     const alquilerHa = alq ? (alquilerHaContrato || 0) : alquilerHaItems(cultivo)  // si no hay contrato, usa ítem 'arrendamiento'
+    // La parte que escala con el rinde sigue la misma rama: del contrato si hay
+    // contrato ('porcentaje_cosecha'), del ítem si no ('porc_grano').
+    const alquilerVariableHa = alq
+      ? alquilerVariableDeContrato(contrato, alquilerHa)
+      : alquilerVariableHaItems(cultivo)
     return { nombre: cultivo.nombre, ind: indicadoresCultivo({
-      costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, costoVariableHa: costoVariableHaItems(cultivo),
+      costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, alquilerVariableHa,
+      costoVariableHa: costoVariableHaItems(cultivo),
       precioTn: cultivo.precioVentaTn, rindeQq: cultivo.rendimientoQq,
     }) }
   }
@@ -338,6 +346,8 @@ const indicadoresVer = computed(() => {
   return [mk(a.cultivo, alq?.simpleHa)].filter(Boolean)
 })
 const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).toLocaleString('es-AR')} kg)` : '—'
+// Mensaje del primer cultivo que no tenga rinde de indiferencia.
+const mensajeSinRindeVer = computed(() => indicadoresVer.value.find(r => r.ind.sinRindeIndif)?.ind.mensajeSinRinde || '')
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña
 function excelLote(row) {
