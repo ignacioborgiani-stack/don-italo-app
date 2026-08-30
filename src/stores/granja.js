@@ -20,7 +20,11 @@ export const MODULOS = [
   { key: 'catalogo',           label: 'Catálogo',           costos: false },
   { key: 'costos_contables',   label: 'Costos Contables',   costos: true  },
   { key: 'costos_proyectados', label: 'Costos Proyectados', costos: true  },
-  { key: 'stocks',             label: 'Stocks',             costos: false },
+  // Stocks dado de baja temporalmente (C1 de la auditoría). Sacarlo de acá lo
+  // saca del panel de permisos de Mi Granja. Los permisos ya concedidos NO se
+  // pierden: guardarPermisosMiembro hace upsert de los módulos listados, no
+  // borra los que faltan, así que la fila 'stocks' queda intacta en la base.
+  // { key: 'stocks',             label: 'Stocks',             costos: false },
   { key: 'costos_fijos',       label: 'Costos Fijos',       costos: false },
 ]
 

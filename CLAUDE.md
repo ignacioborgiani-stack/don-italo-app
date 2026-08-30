@@ -51,11 +51,55 @@ Sin esto, el código no se entiende.
 | **Catálogo** | Precios de referencia en tres pestañas: insumos, labores/servicios y cultivos (precio USD/tn y rinde estimado). |
 | **Costos Contables** | Lo que realmente pasó en cada lote de la campaña. Precios congelados al guardar. |
 | **Costos Proyectados** | El presupuesto **por cultivo**, no por lote. Recalcula en vivo con el catálogo. Soporta simple y doble, y tiene plantillas reutilizables. |
-| **Stocks** | Inventario de insumos, con traslados y aplicación en campo. Independiente del catálogo: el nombre es texto libre. |
+| ~~**Stocks**~~ | Inventario de insumos, con traslados y aplicación en campo. **Dado de baja temporalmente** — ver abajo. |
 | **Mi Granja** | Invitar colaboradores y definir sus permisos por módulo, lote y campaña. |
 
 El módulo **Chat IA fue eliminado** (commit `cd1e4a9`). Si aparece una referencia,
 es residuo.
+
+### Stocks está dado de baja temporalmente
+
+**Por qué.** Es el hallazgo **C1** de la auditoría. `aplicarEnLote` busca el lote en
+la tabla legacy `lotes` y guarda ahí el ítem de costo, pero Costos Contables lee
+`asignaciones_campana` desde el refactor a `lotes_maestro`. O sea: **aplicar un
+insumo en campo descuenta el stock y el costo nunca llega al lote.**
+
+Peor: `migrarAplicados` corría en **cada carga de la app** — aunque nadie abriera el
+módulo — y por cada stock en 'aplicado' escribía el costo en la tabla equivocada y
+después **borraba el stock**, con el error tapado por un `console.warn`. Ese es el
+motivo real de la urgencia: no era un módulo roto, era pérdida de datos silenciosa
+en background.
+
+**Qué se hizo.** Nada se borró; el módulo queda dormido:
+
+- La llamada a `migrarAplicados` está comentada en `reloadDatos` (`stores/main.js`),
+  con la función conservada abajo y marcada como sin uso. **Esto es lo esencial.**
+- Fuera del menú (`TABS` en `MainLayout.vue`), de las rutas (`router/routes.js` y
+  `PATH_MODULO` en `router/index.js`) y del panel de permisos (`MODULOS` en
+  `stores/granja.js`). `/stocks` cae en el catch-all y redirige al Dashboard.
+- `StocksPage.vue`, el CRUD de stocks en el store, las tablas `stocks` y
+  `movimientos` y sus políticas RLS **siguen intactos**. Los permisos de módulo ya
+  concedidos tampoco se pierden: `guardarPermisosMiembro` hace upsert de los módulos
+  listados y no borra los que faltan.
+
+**Qué hay que arreglar ANTES de revivirlo:**
+
+1. **C1 —** `aplicarEnLote` tiene que escribir en `asignaciones_campana` (el cultivo
+   de la asignación de esa campaña), no en `lotes`. Es el arreglo de fondo: hay que
+   decidir en qué etapa cae el ítem y respetar el `sinProrrateo: true`.
+2. **I6 —** la tabla `lotes` no tiene políticas `gm_`, así que hoy el flujo entero
+   falla en silencio para cualquier miembro invitado. Si el punto 1 mueve todo a
+   `asignaciones_campana` (que sí las tiene), esto se resuelve solo; si no, hay que
+   agregarlas.
+3. **I5 —** `StocksPage.vue` muestra el precio unitario en USD sin ningún gate:
+   `ver_precios` no existe para este módulo porque `MODULOS` lo tiene con
+   `costos: false`. Un miembro con acceso a Stocks ve el precio de compra de cada
+   insumo. Hay que pasarlo a `costos: true` y gatear la columna.
+4. **M7 —** `movimientos` se escribe y **ninguna pantalla lo lee**. O se le da uso
+   (un historial de movimientos sería lo natural) o se deja de escribir.
+
+Antes de revivirlo conviene correr las dos consultas de diagnóstico para ver cuántos
+ítems quedaron varados en `lotes` y qué registró `movimientos`.
 
 ---
 
@@ -313,7 +357,9 @@ devuelve las fórmulas — para verificarlas hay que mirar el XML.
 
 **Ítems que vienen de Stocks.** `aplicarEnLote` ya divide el costo por las hectáreas
 del lote, así que esos ítems se marcan `sinProrrateo: true` para que el prorrateo por
-etapa no los aplique dos veces.
+etapa no los aplique dos veces. *(La marca está bien puesta, pero el camino entero
+está roto aguas arriba: ver la baja de Stocks más arriba. Tenerlo en cuenta cuando
+se rehaga `aplicarEnLote`.)*
 
 **`.di-inp` y `.di-lbl` no existen.** Las usan unos 20 componentes y **no están
 definidas en ningún CSS**, así que los inputs quedan con el estilo por defecto del
@@ -346,6 +392,9 @@ salen como `[object Object]`.
    tercer filtro por ella en los SUMIFS. Decidido: agrupar por Insumo + Unidad +
    Ha aplicadas, para que cada fila cierre sola.
 5. **Confirmar la etapa A de hectáreas aplicadas en la app real** con datos productivos.
+6. **Revivir Stocks** — dado de baja temporalmente por C1. Los cuatro arreglos que
+   tiene que tener antes de volver están listados arriba, en "Stocks está dado de
+   baja temporalmente".
 7. **Confirmar que la migración 14 se corrió.**
 
 **Menores**

@@ -109,7 +109,13 @@ export const useMainStore = defineStore('main', () => {
       try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
       try { await loadContratosAlquiler() } catch (e) { console.warn('[contratos_alquiler] tabla no disponible:', e?.message) }
       try { await usePlantillasStore().loadPlantillas() } catch (e) { console.warn('[plantillas_costos] tabla no disponible:', e?.message) }
-      try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }  // convierte stocks 'aplicado' viejos en ítems de costo
+      // DESACTIVADO (baja temporal de Stocks — C1 de la auditoría). Corría en cada
+      // carga de la app: por cada stock 'aplicado' llamaba a aplicarEnLote (que
+      // escribe el ítem de costo en la tabla legacy `lotes`, que Contables ya no
+      // lee) y después BORRABA el stock. Resultado: el insumo desaparecía del
+      // inventario y su costo nunca llegaba al lote, en silencio.
+      // No reactivar hasta que aplicarEnLote escriba en asignaciones_campana.
+      // try { await migrarAplicados() } catch (e) { console.warn('[migrarAplicados]', e?.message) }
     } catch (e) {
       console.error('[reloadDatos]', e?.message)
       sbConnected.value = false
@@ -434,6 +440,12 @@ export const useMainStore = defineStore('main', () => {
   }
 
   // Convierte stocks 'aplicado' antiguos en ítems de costo y los elimina del inventario.
+  //
+  // ⚠️ SIN USO desde la baja temporal de Stocks (C1 de la auditoría). Se conserva
+  // como referencia del flujo, pero está ROTA: escribe en la tabla legacy `lotes`
+  // vía aplicarEnLote y borra el stock igual. La llamada está comentada en
+  // reloadDatos. Arreglar aplicarEnLote antes de volver a llamarla.
+  // eslint-disable-next-line no-unused-vars
   async function migrarAplicados() {
     for (const s of stocks.value.filter(i => i.ubicacion === 'aplicado')) {
       const ok = await aplicarEnLote(s, s.campana, s.cantidad)

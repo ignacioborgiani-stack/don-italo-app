@@ -20,7 +20,9 @@ export default [
       { path: 'catalogo',    component: () => import('../pages/CatalogoPage.vue') },
       { path: 'lotes',       component: () => import('../pages/LotesPage.vue') },
       { path: 'proyectados', component: () => import('../pages/ProyectadosPage.vue') },
-      { path: 'stocks',      component: () => import('../pages/StocksPage.vue') },
+      // Stocks dado de baja temporalmente (C1 de la auditoría). StocksPage.vue
+      // sigue en el repo; /stocks cae en el catch-all y redirige al Dashboard.
+      // { path: 'stocks',      component: () => import('../pages/StocksPage.vue') },
       { path: 'granja',      component: () => import('../pages/GranjaPage.vue') },
     ],
   },

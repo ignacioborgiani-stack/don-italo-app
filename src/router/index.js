@@ -8,7 +8,8 @@ const router = createRouter({
 
 const PATH_MODULO = {
   '/': 'dashboard', '/lotes-maestro': 'lotes', '/catalogo': 'catalogo',
-  '/lotes': 'costos_contables', '/proyectados': 'costos_proyectados', '/stocks': 'stocks',
+  '/lotes': 'costos_contables', '/proyectados': 'costos_proyectados',
+  // '/stocks': 'stocks',  ← baja temporal de Stocks (C1 de la auditoría)
 }
 
 router.beforeEach(async (to) => {
