@@ -37,7 +37,13 @@
               </td>
               <td style="padding:8px 12px;text-align:right;white-space:nowrap">{{ fmtMonto(cf.monto) }} {{ cf.moneda }}</td>
               <td style="padding:8px 12px">{{ cf.periodicidad==='mensual' ? 'Mensual' : 'Anual' }}</td>
-              <td style="padding:8px 12px;text-align:right;font-weight:600;color:#dc2626">{{ fmtUSD(annualUsd(cf)) }}</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;color:#dc2626">
+                <span v-if="annualUsd(cf) === null" style="color:#b45309;cursor:help">
+                  ⚠️ —
+                  <q-tooltip>Está en pesos y falta el tipo de cambio. Cargalo desde el chip 💵 de la barra superior.</q-tooltip>
+                </span>
+                <span v-else>{{ fmtUSD(annualUsd(cf)) }}</span>
+              </td>
               <td style="padding:8px 12px;text-align:right;white-space:nowrap">
                 <button @click="editar(cf)" style="padding:3px 8px;background:#f0fdf4;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-size:11px;color:#166534;margin-left:4px">Editar</button>
                 <button @click="pedirBorrar(cf)" style="padding:3px 8px;background:#fff1f2;border:1px solid #fecaca;border-radius:5px;cursor:pointer;font-size:11px;color:#dc2626;margin-left:4px">×</button>
@@ -47,7 +53,12 @@
           <tfoot v-if="main.costosFijosActivos.length">
             <tr style="border-top:2px solid #2d5a27;background:#fafaf9">
               <td colspan="3" style="padding:9px 12px;font-weight:800;color:#2d5a27">TOTAL ANUAL</td>
-              <td style="padding:9px 12px;text-align:right;font-weight:800;color:#dc2626">{{ fmtUSD(main.costosFijosTotal) }}</td>
+              <td style="padding:9px 12px;text-align:right;font-weight:800;color:#dc2626">
+                {{ fmtUSD(main.costosFijosTotal) }}
+                <div v-if="main.costosFijosSinTc" style="font-size:10px;font-weight:600;color:#b45309">
+                  ⚠️ sin {{ main.costosFijosSinTc }} concepto{{ main.costosFijosSinTc === 1 ? '' : 's' }} en pesos
+                </div>
+              </td>
               <td/>
             </tr>
           </tfoot>

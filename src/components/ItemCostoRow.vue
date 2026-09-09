@@ -49,7 +49,9 @@
             + {{ fmtNum(param.arsPorTn) }} ARS/tn
           </span>
           <div style="font-size:10px;color:#9ca3af;margin-top:2px">
-            sobre {{ fmtUSD(precioVentaTn) }}/tn × {{ fmtNum(rendTnHa) }} tn/ha · TC {{ fmtNum(tipoCambio) }}
+            sobre {{ fmtUSD(precioVentaTn) }}/tn × {{ fmtNum(rendTnHa) }} tn/ha ·
+            <span v-if="tipoCambio > 0">TC {{ fmtNum(tipoCambio) }}</span>
+            <span v-else style="color:#b45309">sin TC</span>
           </div>
         </div>
       </template>
@@ -110,7 +112,11 @@
 
       <!-- Costo calculado -->
       <div class="di-col-costo" style="width:84px;flex-shrink:0;text-align:right;padding-top:5px">
-        <b style="color:#2d5a27;font-size:13px">{{ fmtCosto(costo) }}</b>
+        <b v-if="sinTc" style="color:#b45309;font-size:13px;cursor:help">
+          ⚠️ —
+          <q-tooltip>Este ítem está en pesos y falta el tipo de cambio. Cargalo desde el chip 💵 de la barra superior.</q-tooltip>
+        </b>
+        <b v-else style="color:#2d5a27;font-size:13px">{{ fmtCosto(costo) }}</b>
         <div style="font-size:10px;color:#9ca3af">USD/ha</div>
       </div>
 
@@ -161,7 +167,9 @@ const props = defineProps({
   catalogo:       { type: Array,  default: () => [] },
   labores:        { type: Array,  default: () => [] },
   cultivosPrecio: { type: Object, default: () => ({}) },
-  tipoCambio:     { type: Number, default: 1000 },
+  // null = todavía no hay tipo de cambio. Nunca un valor inventado: un ítem en
+  // pesos sin TC muestra "—", no un número.
+  tipoCambio:     { type: Number, default: null },
   rendimientoQq:  { type: [Number, String], default: 0 },
   precioVentaTn:  { type: [Number, String], default: 0 },
   precioEditable: { type: Boolean, default: false },   // Contables: precio manual por ítem
@@ -226,13 +234,21 @@ const laboresFiltradas = computed(() => {
 // el costo por ha aplicada, prorrateado por el factor de la etapa. Así la
 // columna sigue siendo sumable y el "Total: $X/ha" del pie cierra.
 const factor = it => (it?.sinProrrateo ? 1 : (parseFloat(props.factorEtapa) || 1))
-const costo = computed(() => calcularCostoItemHa(
-  props.item, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores
-) * factor(props.item))
+// null = ítem en pesos sin tipo de cambio. Ojo: `null * factor` daría 0, así
+// que el null se propaga explícitamente.
+const costo = computed(() => {
+  const bruto = calcularCostoItemHa(
+    props.item, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores,
+  )
+  return bruto === null ? null : bruto * factor(props.item)
+})
+const sinTc = computed(() => costo.value === null)
 
 function recompute(it) {
   const bruto = calcularCostoItemHa(it, props.catalogo, props.cultivosPrecio, props.tipoCambio, props.rendimientoQq, props.precioVentaTn, props.labores)
-  return { ...it, costoHaCalculado: bruto * factor(it) }
+  // Sin TC no se congela un 0: se deja el costo anterior y el guardado queda
+  // bloqueado aguas arriba hasta que haya tipo de cambio.
+  return bruto === null ? { ...it } : { ...it, costoHaCalculado: bruto * factor(it) }
 }
 function emitChange(patch) { emit('update:item', recompute({ ...props.item, ...patch })) }
 

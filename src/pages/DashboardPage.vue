@@ -27,6 +27,14 @@
       </div>
     </div>
 
+    <!-- Sin TC, los costos fijos en pesos quedan fuera del Resultado Neto. El
+         bruto sale de Contables (precios congelados) y no está afectado. -->
+    <div v-if="verPlata && store.sinTipoCambio && store.costosFijosSinTc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
+      <b>⚠️ Falta el tipo de cambio.</b>
+      El Resultado Neto no incluye {{ store.costosFijosSinTc }} costo{{ store.costosFijosSinTc === 1 ? '' : 's' }} fijo{{ store.costosFijosSinTc === 1 ? '' : 's' }} en pesos que no se {{ store.costosFijosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD.
+      Cargalo desde el chip 💵 de la barra superior.
+    </div>
+
     <div v-if="verPlata" style="display:grid;grid-template-columns:minmax(280px,420px);gap:16px;margin-bottom:28px">
       <ResultadoNetoCard :bruto="resultadoBruto" :costos-fijos="store.costosFijosTotal" titulo="Resultado Neto de la campaña"/>
     </div>

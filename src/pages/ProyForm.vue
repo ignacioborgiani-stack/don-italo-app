@@ -110,9 +110,15 @@
       <p v-if="errorPlantilla" style="font-size:12px;color:#dc2626;margin:6px 0 0">{{ errorPlantilla }}</p>
     </div>
 
+    <div v-if="bloqueadosSinTc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
+      <b>No se puede guardar sin tipo de cambio.</b>
+      Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
+      guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
+      Cargá el tipo de cambio desde el chip 💵 de la barra superior.
+    </div>
     <div class="row justify-end q-gutter-sm">
       <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-      <q-btn unelevated color="primary" label="Guardar" :loading="guardando" @click="onGuardar"/>
+      <q-btn unelevated color="primary" label="Guardar" :loading="guardando" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
     </div>
   </div>
 </template>
@@ -124,7 +130,7 @@ import CultivoBlock from '../components/CultivoBlock.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
 import { usePlantillasStore } from '../stores/plantillas'
-import { calcIngresoHa, calcularCostoItemHa } from '../utils/calculations'
+import { calcIngresoHa, calcularCostoItemHa, itemsSinTc } from '../utils/calculations'
 import { nombreDoble } from '../utils/mappers'
 import { fmtUSD } from '../utils/formatters'
 
@@ -273,7 +279,14 @@ const congelar = c => ({
   ...c,
   itemsCosto: (c?.itemsCosto || []).map(it => ({ ...it, costoHaCalculado: itemHaLive(it, c) })),
 })
+// Igual que en Contables: sin TC, congelar dejaría los ítems en pesos en cero.
+const ctxTc = computed(() => ({ catalogo: catalogo.value, cultivosPrecio: cultivosPrecio.value, labores: catStore.labores }))
+const bloqueadosSinTc = computed(() => (esDoble.value
+  ? [...itemsSinTc(f.cultivoInvernal, ctxTc.value, main.tipoCambio), ...itemsSinTc(f.cultivoEstival, ctxTc.value, main.tipoCambio)]
+  : itemsSinTc(f, ctxTc.value, main.tipoCambio)).length)
+
 function onGuardar() {
+  if (bloqueadosSinTc.value) return
   if (esDoble.value) {
     emit('save', {
       ...f,

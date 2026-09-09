@@ -58,10 +58,16 @@
           :cultivo-obj="f.cultivoEstival" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivoEstival=v"/>
       </template>
 
+      <div v-if="bloqueadosSinTc" style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e">
+        <b>No se puede guardar sin tipo de cambio.</b>
+        Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
+        guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
+        Cargá el tipo de cambio desde el chip 💵 de la barra superior.
+      </div>
       <div class="row items-center justify-between q-mt-md">
         <q-btn v-if="!editMode" flat label="← Volver" @click="paso=1"/>
         <q-btn v-else flat label="Cancelar" @click="$emit('cancel')"/>
-        <q-btn unelevated color="primary" label="Guardar asignación" @click="onGuardar"/>
+        <q-btn unelevated color="primary" label="Guardar asignación" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
       </div>
     </template>
 
@@ -85,7 +91,7 @@ import LoteMaestroForm from './LoteMaestroForm.vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useMainStore } from '../stores/main'
 import { useCatalogoStore } from '../stores/catalogo'
-import { calcularCostoItemHa, factorItem } from '../utils/calculations'
+import { calcularCostoItemHa, factorItem, itemsSinTc } from '../utils/calculations'
 import { fmtNum } from '../utils/formatters'
 
 const props = defineProps({ campania: String, initial: Object })
@@ -137,7 +143,16 @@ function finalizar(c) {
   })) }
 }
 
+// Ítems en pesos que no se pueden convertir. Congelarlos sin TC guardaría un
+// costo nulo que después se lee como 0: se bloquea el guardado hasta que haya
+// tipo de cambio.
+const ctxTc = computed(() => ({ catalogo: catStore.items, cultivosPrecio: cultivosPrecio.value, labores: catStore.labores }))
+const bloqueadosSinTc = computed(() => (f.tipoSiembra === 'doble'
+  ? [...itemsSinTc(f.cultivoInvernal, ctxTc.value, main.tipoCambio), ...itemsSinTc(f.cultivoEstival, ctxTc.value, main.tipoCambio)]
+  : itemsSinTc(f.cultivo, ctxTc.value, main.tipoCambio)).length)
+
 function onGuardar() {
+  if (bloqueadosSinTc.value) return
   const out = { loteId: f.loteId, campaña: props.campania, tipoSiembra: f.tipoSiembra }
   if (f.tipoSiembra === 'doble') {
     out.cultivo = null

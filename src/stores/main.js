@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
 import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb, contratoAlquilerToDb, contratoAlquilerFromDb } from '../utils/mappers'
-import { costoFijoAnualUsd } from '../utils/calculations'
+import { costoFijoAnualUsd, hayTc } from '../utils/calculations'
 import { fetchDolarOficialBNA } from '../utils/tipoCambio'
 import { useCatalogoStore } from './catalogo'
 import { useLotesMaestroStore } from './lotesMaestro'
@@ -44,12 +44,23 @@ export const useMainStore = defineStore('main', () => {
   // Tipo de cambio: ARS por USD (para insumos/costos cotizados en ARS).
   // `tipoCambio` es el valor EFECTIVO que usan los cálculos: el del BNA, salvo
   // que el usuario lo haya sobreescrito a mano (tipoCambioManual = true).
-  const tipoCambio            = ref(1000)
+  // Arranca en null, NO en un valor inventado: mientras no llegue el real (de
+  // `configuracion`, de la API o de un override manual) la app está "sin TC" y
+  // los ítems en pesos avisan en vez de mostrar un número calculado con
+  // divisor 1, que convertía los pesos en dólares.
+  const tipoCambio            = ref(null)
   const tipoCambioBna         = ref(null)   // último valor traído de la API (referencia)
   const tipoCambioManual      = ref(false)  // true = el usuario fijó el valor a mano
   const tipoCambioActualizado = ref('')     // ISO de la última actualización
   const tipoCambioCargando    = ref(false)
   const tipoCambioError       = ref('')
+
+  // ¿Se puede convertir de ARS a USD? Es la condición que miran las pantallas.
+  const hayTipoCambio = computed(() => hayTc(tipoCambio.value))
+  // Sin TC y sin nada en vuelo: es el estado que hay que avisar. Mientras
+  // `tipoCambioCargando` esté en true la app sólo está esperando a la API y no
+  // corresponde alarmar a nadie.
+  const sinTipoCambio = computed(() => !hayTipoCambio.value && !tipoCambioCargando.value)
   const lotes        = ref([])
   const asignaciones = ref([])   // asignaciones_campana (lote ↔ campaña ↔ cultivo + costos)
   const proyecciones = ref([])
@@ -61,7 +72,13 @@ export const useMainStore = defineStore('main', () => {
   const campanaIdActiva = computed(() => campanasRows.value.find(c => c.nombre === campania.value)?.id || null)
   // Costos fijos de la campaña activa y su total anual en USD.
   const costosFijosActivos = computed(() => costosFijos.value.filter(c => c.campanaId === campanaIdActiva.value))
-  const costosFijosTotal   = computed(() => costosFijosActivos.value.reduce((s, cf) => s + costoFijoAnualUsd(cf, tipoCambio.value), 0))
+  // Sin TC, los costos fijos en ARS devuelven null y quedan FUERA del total.
+  // `costosFijosSinTc` dice cuántos, para que la pantalla lo rotule en vez de
+  // mostrar un total incompleto como si estuviera completo.
+  const costosFijosTotal   = computed(() =>
+    costosFijosActivos.value.reduce((s, cf) => s + (costoFijoAnualUsd(cf, tipoCambio.value) ?? 0), 0))
+  const costosFijosSinTc   = computed(() =>
+    costosFijosActivos.value.filter(cf => costoFijoAnualUsd(cf, tipoCambio.value) === null).length)
 
   function getUid() {
     return useAuthStore().usuario?.id
@@ -516,6 +533,8 @@ export const useMainStore = defineStore('main', () => {
   async function guardarTipoCambioConfig() {
     const userId = getUid()
     if (!userId) return
+    // Nunca persistir un TC inválido: se leería como 0 y volvería el divisor 1.
+    if (!hayTc(tipoCambio.value)) return
     const filas = [
       { user_id: userId, clave: 'tipoCambio',            valor: String(tipoCambio.value) },
       { user_id: userId, clave: 'tipoCambioManual',      valor: String(tipoCambioManual.value) },
@@ -539,8 +558,10 @@ export const useMainStore = defineStore('main', () => {
         await guardarTipoCambioConfig()
       }
     } catch (e) {
+      // El error va al estado, no a la consola: si además no hay ningún valor
+      // válido (ni guardado ni manual), la app queda SIN TC y el usuario tiene
+      // que enterarse en pantalla, con la opción de cargarlo a mano.
       tipoCambioError.value = e?.message || 'No se pudo consultar el Banco Nación'
-      console.warn('[tipoCambio] usando el valor guardado:', tipoCambioError.value)
     } finally {
       tipoCambioCargando.value = false
     }
@@ -570,6 +591,7 @@ export const useMainStore = defineStore('main', () => {
   return {
     sbConnected, campania, campanas, campanasRows, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler,
     tipoCambio, tipoCambioBna, tipoCambioManual, tipoCambioActualizado, tipoCambioCargando, tipoCambioError,
+    hayTipoCambio, sinTipoCambio, costosFijosSinTc,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,
     loadData, reloadDatos, cargarDatosDemo, resetData,
     loadCampanas, addCampana, delCampana,

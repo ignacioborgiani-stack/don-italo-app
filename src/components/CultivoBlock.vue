@@ -33,6 +33,11 @@
         <p :style="{fontWeight:700,color:c,fontSize:'14px'}">{{ fmtUSD(v) }}</p>
       </div>
     </div>
+    <!-- Costo, margen y todo lo que sale de ellos están incompletos mientras
+         haya ítems en pesos sin convertir. -->
+    <p v-if="sinTcCount" style="font-size:11px;font-weight:600;color:#b45309;margin:6px 0 0;text-align:right">
+      ⚠️ sin {{ sinTcCount }} ítem{{ sinTcCount === 1 ? '' : 's' }} en pesos — falta el tipo de cambio
+    </p>
   </div>
 </template>
 
@@ -65,9 +70,13 @@ const main = useMainStore()
 const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
 
 // Costo por hectárea de LOTE: cada ítem prorrateado por las ha aplicadas de su etapa.
-const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) =>
-  s + calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn, catStore.labores)
-      * factorItem(it, props.cultivoObj.etapas, props.haLote), 0))
+// Los ítems en pesos sin TC (null) quedan afuera y se cuentan aparte.
+const itemHa = it => {
+  const bruto = calcularCostoItemHa(it, catStore.items, cultivosPrecio.value, main.tipoCambio, props.cultivoObj.rendimientoQq, props.cultivoObj.precioVentaTn, catStore.labores)
+  return bruto === null ? null : bruto * factorItem(it, props.cultivoObj.etapas, props.haLote)
+}
+const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) => s + (itemHa(it) ?? 0), 0))
+const sinTcCount = computed(() => (props.cultivoObj.itemsCosto || []).filter(it => itemHa(it) === null).length)
 const ingHa    = computed(() => calcIngresoHa(props.cultivoObj))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 

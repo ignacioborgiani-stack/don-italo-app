@@ -107,6 +107,17 @@
 
     <div v-if="allItems.length" style="text-align:right;font-size:12px;color:#374151;margin-top:8px">
       Total: <b style="color:#dc2626">{{ fmtUSD(total) }}/ha</b>
+      <span v-if="itemsSinTcCount" style="color:#b45309;font-weight:600;margin-left:6px">
+        ⚠️ sin {{ itemsSinTcCount }} ítem{{ itemsSinTcCount === 1 ? '' : 's' }} en pesos
+      </span>
+    </div>
+    <!-- Aviso del estado sin TC: el total de arriba está incompleto y el
+         guardado queda bloqueado hasta que haya tipo de cambio. -->
+    <div v-if="itemsSinTcCount" style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400e">
+      <b>Falta el tipo de cambio.</b>
+      {{ itemsSinTcCount }} ítem{{ itemsSinTcCount === 1 ? '' : 's' }} en pesos no se {{ itemsSinTcCount === 1 ? 'puede' : 'pueden' }} convertir a USD,
+      así que {{ itemsSinTcCount === 1 ? 'queda' : 'quedan' }} fuera del total y no se puede guardar.
+      Cargalo desde el chip 💵 de la barra superior.
     </div>
 
     <!-- Confirmar eliminación de etapa con ítems -->
@@ -195,7 +206,12 @@ const leyendaHa = g => {
   return `${fmtNum(h)} de ${fmtNum(haLoteNum.value)} ha`
 }
 // Costo por hectárea de LOTE: es el número sumable de la columna.
-const calcEnGrupo = (it, g) => calcBruto(it) * (it.sinProrrateo ? 1 : factorDe(g))
+// null (ítem en pesos sin TC) se propaga: `null * factor` daría 0 y lo haría
+// pasar por un ítem gratis.
+const calcEnGrupo = (it, g) => {
+  const bruto = calcBruto(it)
+  return bruto === null ? null : bruto * (it.sinProrrateo ? 1 : factorDe(g))
+}
 
 const ordenarCat = ref(props.ordenarCat)
 
@@ -237,8 +253,12 @@ function buildGrupos() {
 const grupos = ref(buildGrupos())
 
 const allItems = computed(() => grupos.value.flatMap(g => g.items))
-const totalEtapa = g => g.items.reduce((s, it) => s + calcEnGrupo(it, g), 0)
+// El total suma lo convertible; los ítems sin TC quedan afuera y se cuentan
+// aparte para poder rotular el total como incompleto.
+const totalEtapa = g => g.items.reduce((s, it) => s + (calcEnGrupo(it, g) ?? 0), 0)
 const total = computed(() => grupos.value.reduce((s, g) => s + totalEtapa(g), 0))
+const itemsSinTcCount = computed(() =>
+  grupos.value.reduce((n, g) => n + g.items.filter(it => calcEnGrupo(it, g) === null).length, 0))
 
 // Estampa la etapa en cada ítem, ordena por categoría si corresponde y emite al padre.
 function syncUp() {

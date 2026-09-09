@@ -59,14 +59,18 @@ export function filasCultivo(cultivoObj, ha, ctx, cultivoLabel = '', { congelado
     const costoHa = congelado
       ? (parseFloat(it.costoHaCalculado ?? it.costoHaUsd) || 0)
       : calcularCostoItemHa(it, ctx.catalogo, ctx.cultivosPrecio, ctx.tipoCambio, rend, precio, ctx.labores)
+    // null = ítem en pesos sin tipo de cambio. Se marca la fila en vez de
+    // redondearlo a 0, que lo haría pasar por un insumo gratis.
+    const sinTc = costoHa === null
     return {
       cultivo:    cultivoLabel || cultivoObj.nombre || '',
       insumo:     nombreItem(it, ctx),
       categoria:  it.categoria || '',
       cantidad:   cantidadItem(it, ctx),
       unidad:     unidadItem(it, ctx),
-      costoHa:    Math.round(costoHa * 100) / 100,
-      costoTotal: Math.round(costoHa * (parseFloat(ha) || 0) * 100) / 100,
+      costoHa:    sinTc ? null : Math.round(costoHa * 100) / 100,
+      costoTotal: sinTc ? null : Math.round(costoHa * (parseFloat(ha) || 0) * 100) / 100,
+      sinTc,
     }
   })
 }
@@ -131,11 +135,13 @@ export function agrupar(filas, ha, { conLote = false } = {}) {
   const m = new Map()
   for (const f of filas) {
     const key = `${conLote ? (f.lote || '') : ''}||${f.cultivo || ''}||${f.insumo}`
-    if (!m.has(key)) m.set(key, { lote: f.lote || '', cultivo: f.cultivo || '', insumo: f.insumo, categoria: f.categoria, unidad: f.unidad, ha: conLote ? (parseFloat(f.ha) || 0) : haNum, cant: 0, hayCant: false, costoTotal: 0 })
+    if (!m.has(key)) m.set(key, { lote: f.lote || '', cultivo: f.cultivo || '', insumo: f.insumo, categoria: f.categoria, unidad: f.unidad, ha: conLote ? (parseFloat(f.ha) || 0) : haNum, cant: 0, hayCant: false, costoTotal: 0, sinTc: false })
     const g = m.get(key)
     const c = parseFloat(f.cantidad)
     if (Number.isFinite(c)) { g.cant += c; g.hayCant = true }
-    g.costoTotal += parseFloat(f.costoTotal) || 0
+    // Una fila sin TC no suma 0: marca al grupo entero como no convertible.
+    if (f.sinTc) g.sinTc = true
+    else g.costoTotal += parseFloat(f.costoTotal) || 0
   }
   const out = [...m.values()].map(g => {
     const cantidad = g.hayCant ? r2(g.cant) : ''
@@ -146,8 +152,9 @@ export function agrupar(filas, ha, { conLote = false } = {}) {
       // costo/ha; por eso se propagan hasta acá en vez de descartarse.
       ha: g.ha,
       consumo: consumoTotal(cantidad, g.ha, g.unidad),
-      costoHa: g.ha > 0 ? r2(g.costoTotal / g.ha) : 0,   // Costo/ha = total / hectáreas
-      costoTotal: r2(g.costoTotal),
+      costoHa: g.sinTc ? null : (g.ha > 0 ? r2(g.costoTotal / g.ha) : 0),   // Costo/ha = total / hectáreas
+      costoTotal: g.sinTc ? null : r2(g.costoTotal),
+      sinTc: g.sinTc,
     }
   })
   out.sort((a, b) =>
@@ -178,8 +185,11 @@ export function agruparEnSecciones(filas, ha) {
     }
     sec.filas.push(f)
   }
+  // El total suma lo convertible; `sinTc` dice cuántas filas quedaron afuera
+  // para que la pantalla lo rotule en vez de mostrarlo como si estuviera completo.
   const total = planas.reduce((s, f) => s + (parseFloat(f.costoTotal) || 0), 0)
-  return { secciones, total: r2(total), totalHa: parseFloat(ha) > 0 ? r2(total / parseFloat(ha)) : 0 }
+  const sinTc = planas.filter(f => f.sinTc).length
+  return { secciones, total: r2(total), totalHa: parseFloat(ha) > 0 ? r2(total / parseFloat(ha)) : 0, sinTc }
 }
 
 // ── Hoja "Consumo campaña" ────────────────────────────────────────

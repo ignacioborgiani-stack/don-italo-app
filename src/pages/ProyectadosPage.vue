@@ -13,6 +13,14 @@
       </div>
     </div>
 
+    <!-- Sin tipo de cambio: Proyectados recalcula todo en vivo, así que es la
+         pantalla más afectada. Los ítems en USD se siguen viendo normal. -->
+    <div v-if="verPrecios && store.sinTipoCambio" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#92400e">
+      <b>⚠️ Falta el tipo de cambio.</b>
+      Los ítems cargados en pesos no se pueden convertir a USD: quedan fuera de los totales y aparecen marcados.
+      Los ítems en dólares no están afectados. Cargalo desde el chip 💵 de la barra superior.
+    </div>
+
     <!-- Sin presupuestos en esta campaña -->
     <div v-if="!barData.length" style="background:#fff;border:1px dashed #d4cfc4;border-radius:12px;padding:36px;text-align:center;color:#6b7280;margin-bottom:28px">
       <p style="margin:0 0 6px">No hay presupuestos cargados para <b style="color:#2d5a27">{{ store.campania }}</b>.</p>
@@ -123,8 +131,15 @@
             <button @click="toggle(d.cultivo)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;font-size:12px;font-family:inherit">
               {{ abiertos.has(d.cultivo) ? 'Ocultar insumos ▲' : 'Ver insumos ▾' }}
             </button>
-            <button v-if="verPrecios" @click="excelProy(d)" style="flex:1;padding:6px;border-radius:7px;border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
-              ⬇ Excel
+            <!-- Con ítems sin convertir la planilla saldría con agujeros y los
+                 SUMIFS no cerrarían: mejor bloquear la descarga. -->
+            <button v-if="verPrecios" :disabled="!!seccionesDe(d).sinTc" @click="excelProy(d)"
+              :title="seccionesDe(d).sinTc ? 'Falta el tipo de cambio: hay ítems en pesos sin convertir' : ''"
+              :style="`flex:1;padding:6px;border-radius:7px;font-size:12px;font-weight:600;font-family:inherit;${
+                seccionesDe(d).sinTc
+                  ? 'border:1px solid #fde68a;background:#fffbeb;color:#b45309;cursor:not-allowed'
+                  : 'border:1px solid #86efac;background:#f0fdf4;color:#166534;cursor:pointer'}`">
+              {{ seccionesDe(d).sinTc ? '⚠️ Excel' : '⬇ Excel' }}
             </button>
             <button v-if="puedeEditar" @click="pedirBorrarProy(d.proy)" title="Eliminar presupuesto"
               style="padding:6px 10px;border-radius:7px;border:1px solid #fecaca;background:#fff1f2;color:#dc2626;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">
@@ -153,14 +168,21 @@
                     <td style="padding:5px 6px;text-align:right">{{ f.cantidad }}</td>
                     <td style="padding:5px 6px">{{ f.unidad }}</td>
                     <template v-if="verPrecios">
-                      <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
-                      <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                      <td v-if="f.sinTc" colspan="2" style="padding:5px 6px;text-align:right;color:#b45309;font-weight:600">
+                        ⚠️ sin tipo de cambio
+                      </td>
+                      <template v-else>
+                        <td style="padding:5px 6px;text-align:right">{{ fmtUSD(f.costoHa) }}</td>
+                        <td style="padding:5px 6px;text-align:right;font-weight:600">{{ fmtUSD(f.costoTotal) }}</td>
+                      </template>
                     </template>
                   </tr>
                 </template>
                 <tr v-if="seccionesDe(d).secciones.length && verPrecios" style="border-top:2px solid #2d5a27;background:#fafaf9">
                   <td style="padding:5px 6px;font-weight:800;color:#2d5a27">TOTAL</td>
-                  <td/><td/>
+                  <td colspan="2" style="padding:5px 6px;color:#b45309;font-weight:600;font-size:10px">
+                    <span v-if="seccionesDe(d).sinTc">⚠️ sin {{ seccionesDe(d).sinTc }} ítem{{ seccionesDe(d).sinTc === 1 ? '' : 's' }} en pesos</span>
+                  </td>
                   <td style="padding:5px 6px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(seccionesDe(d).totalHa) }}</td>
                   <td style="padding:5px 6px;text-align:right;font-weight:800;color:#2d5a27">{{ fmtUSD(seccionesDe(d).total) }}</td>
                 </tr>
@@ -419,6 +441,9 @@ function seccionesDe(d) {
   return agruparEnSecciones(insumosDe(d), d.ha)
 }
 function excelProy(d) {
+  // Guarda además del :disabled: una planilla con ítems sin convertir tendría
+  // celdas vacías que los SUMIFS suman como 0, dando totales falsos.
+  if (seccionesDe(d).sinTc) return
   const filasResumen = barData.value.flatMap(x => filasDe(x).map(f => ({ ...f, lote: x.cultivo, ha: x.ha })))
   exportarExcel({
     archivo: `costos-proyectados-${d.cultivo.replace(/\s*\/\s*/g, '-')}-${store.campania.replace('/','-')}.xlsx`,

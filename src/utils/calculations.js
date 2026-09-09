@@ -85,11 +85,29 @@ export function pieCostosPorCategoria(items = []) {
     .map(cat => ({ name: CATEGORIA_LABEL[cat] || cat, value: acc[cat], color: CATEGORIA_COLOR[cat] || '#9ca3af' }))
 }
 
+// ── Tipo de cambio ────────────────────────────────────────────────
+// Un TC inválido (0, null, '', negativo, NaN) NO puede degradar a divisor 1:
+// eso convertiría los pesos en dólares. Devuelve el número o null, y todo lo
+// que necesite convertir de ARS devuelve null cuando no hay TC — nunca un
+// número inventado. `null` es deliberado: `suma + null === suma` en JS, así que
+// los totales existentes excluyen lo no convertible en vez de contarlo mal.
+export function tcValido(tipoCambio) {
+  const n = parseFloat(tipoCambio)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+export const hayTc = tipoCambio => tcValido(tipoCambio) !== null
+
 // ── Costos fijos de estructura ────────────────────────────────────
 // Costo fijo llevado a USD/año: mensual ×12; ARS → USD por tipo de cambio.
-export function costoFijoAnualUsd(cf, tipoCambio = 1) {
+// Sin TC, un costo fijo en ARS devuelve null (no convertible).
+export function costoFijoAnualUsd(cf, tipoCambio = null) {
   const monto = parseFloat(cf?.monto) || 0
-  const usd = cf?.moneda === 'ARS' ? monto / (parseFloat(tipoCambio) || 1) : monto
+  let usd = monto
+  if (cf?.moneda === 'ARS') {
+    const tc = tcValido(tipoCambio)
+    if (tc === null) return null
+    usd = monto / tc
+  }
   return usd * (cf?.periodicidad === 'mensual' ? 12 : 1)
 }
 
@@ -125,7 +143,9 @@ export function unidadDosisInsumo(insumo) {
 // Costo USD/ha de un ítem de costo. Resuelve por insumo del catálogo o por modo especial.
 // item: { categoria, insumoId, dosis, modoEspecial, parametroEspecial, costoHaUsd? }
 // catalogo: array de insumos; cultivosPrecio: { [nombre]: precioUsdTn } (para soja en alquiler).
-export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, tipoCambio = 1, rendimientoQq = 0, precioVentaTn = 0, labores = []) {
+// Devuelve null si el ítem está en pesos y no hay tipo de cambio válido: la
+// pantalla muestra "—" y el aviso, en vez de un número calculado con divisor 1.
+export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, tipoCambio = null, rendimientoQq = 0, precioVentaTn = 0, labores = []) {
   const rendTn = (parseFloat(rendimientoQq) || 0) / 10
   const precioVenta = parseFloat(precioVentaTn) || 0
 
@@ -148,7 +168,11 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
       case 'unidad': costo = precio * dosis; break
       default:       costo = precio * dosis
     }
-    if (labor.moneda === 'ARS') costo = costo / (parseFloat(tipoCambio) || 1)
+    if (labor.moneda === 'ARS') {
+      const tc = tcValido(tipoCambio)
+      if (tc === null) return null
+      costo = costo / tc
+    }
     return costo
   }
 
@@ -182,10 +206,17 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
       // por tonelada, que se pasa a USD con el tipo de cambio del BNA:
       //   [(%corredor + %sellado)/100 × precioTn + arsPorTn/tipoCambio] × rinde(tn/ha)
       if (!tiene('porcCorredor') && !tiene('porcSellado') && !tiene('arsPorTn')) return legacy
-      const tc = parseFloat(tipoCambio) || 1
       const porc = ((parseFloat(p.porcCorredor) || 0) + (parseFloat(p.porcSellado) || 0)) / 100
-      const usdPorTn = porc * precioVenta + (parseFloat(p.arsPorTn) || 0) / tc
-      return usdPorTn * rendTn
+      const ars  = parseFloat(p.arsPorTn) || 0
+      // Sólo el representante entregador está en pesos: si es 0, el ítem es
+      // enteramente en USD y no necesita tipo de cambio.
+      let arsEnUsd = 0
+      if (ars > 0) {
+        const tc = tcValido(tipoCambio)
+        if (tc === null) return null
+        arsEnUsd = ars / tc
+      }
+      return (porc * precioVenta + arsEnUsd) * rendTn
     }
     if (item.categoria === 'seguro') {
       // % de la prima × precio de mercado del cultivo (USD/tn) × rinde asegurado (tn/ha)
@@ -212,7 +243,11 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
       const manual = item.precioUnit != null && item.precioUnit !== ''
       if (!manual && !insumoHT) return parseFloat(item.costoHaUsd) || 0   // referencia rota
       let precioHT = manual ? (parseFloat(item.precioUnit) || 0) : (parseFloat(insumoHT.precio) || 0)
-      if (!manual && insumoHT.moneda === 'ARS') precioHT = precioHT / (parseFloat(tipoCambio) || 1)
+      if (!manual && insumoHT.moneda === 'ARS') {
+        const tc = tcValido(tipoCambio)
+        if (tc === null) return null
+        precioHT = precioHT / tc
+      }
       return precioHT * rendTn / tnPorHT
     }
 
@@ -236,12 +271,34 @@ export function calcularCostoItemHa(item, catalogo = [], cultivosPrecio = {}, ti
       case 'unidad': costo = precio * dosis; break
       default:       costo = precio * dosis
     }
-    if (insumo.moneda === 'ARS') costo = costo / (parseFloat(tipoCambio) || 1)
+    if (insumo.moneda === 'ARS') {
+      const tc = tcValido(tipoCambio)
+      if (tc === null) return null
+      costo = costo / tc
+    }
     return costo
   }
 
   // ── Legacy / sin vincular: valor manual ──
   return parseFloat(item.costoHaUsd ?? item.costoHaCalculado) || 0
+}
+
+// ¿Este ítem necesita tipo de cambio para poder calcularse?
+// Fuente única de verdad: es exactamente el caso en el que calcularCostoItemHa
+// devuelve null con TC nulo. Así no se duplica la lógica de ramas (que ya nos
+// mordió: la rama de labores corta antes que la de precio manual).
+export const itemRequiereTc = (item, catalogo = [], cultivosPrecio = {}, rendimientoQq = 0, precioVentaTn = 0, labores = []) =>
+  calcularCostoItemHa(item, catalogo, cultivosPrecio, null, rendimientoQq, precioVentaTn, labores) === null
+
+// Ítems de un cultivo que no se pueden convertir con el TC dado. Con un TC
+// válido siempre da 0: sirve para decidir si mostrar el aviso y para bloquear
+// el guardado y la exportación.
+export function itemsSinTc(cultivoObj, ctx = {}, tipoCambio = null) {
+  if (hayTc(tipoCambio)) return []
+  return (cultivoObj?.itemsCosto || []).filter(it => itemRequiereTc(
+    it, ctx.catalogo || [], ctx.cultivosPrecio || {},
+    cultivoObj?.rendimientoQq, cultivoObj?.precioVentaTn, ctx.labores || [],
+  ))
 }
 
 // ── Hectáreas aplicadas por etapa ─────────────────────────────────

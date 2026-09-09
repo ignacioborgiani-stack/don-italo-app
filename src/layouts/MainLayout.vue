@@ -60,13 +60,26 @@
         <q-btn
           flat no-caps dense
           class="q-ml-sm"
-          style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-weight:700;font-size:13px;padding:5px 12px"
+          :style="`border-radius:8px;color:#fff;font-weight:700;font-size:13px;padding:5px 12px;${
+            store.sinTipoCambio
+              ? 'background:rgba(245,158,11,.35);border:1px solid #fbbf24'
+              : 'background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3)'}`"
         >
-          <span style="margin-right:6px">💵</span>{{ fmtARS(store.tipoCambio) }}
-          <span style="font-weight:500;opacity:.75;margin-left:4px">ARS/USD</span>
+          <!-- Tres estados: sin TC (ámbar), esperando a la API, y valor cargado. -->
+          <template v-if="store.sinTipoCambio">
+            <span style="margin-right:6px">⚠️</span>Sin tipo de cambio
+          </template>
+          <template v-else-if="!store.hayTipoCambio">
+            <span style="margin-right:6px">💵</span><span style="opacity:.8">buscando…</span>
+          </template>
+          <template v-else>
+            <span style="margin-right:6px">💵</span>{{ fmtARS(store.tipoCambio) }}
+            <span style="font-weight:500;opacity:.75;margin-left:4px">ARS/USD</span>
+          </template>
           <q-icon v-if="store.tipoCambioManual" name="edit" size="13px" class="q-ml-xs"/>
           <q-icon name="expand_more" size="16px" class="q-ml-xs"/>
-          <q-tooltip>Dólar oficial Banco Nación (compra) · actualizado {{ fmtActualizado(store.tipoCambioActualizado) }}</q-tooltip>
+          <q-tooltip v-if="store.sinTipoCambio">Falta el tipo de cambio: los ítems en pesos no se pueden convertir a USD. Cargalo a mano acá.</q-tooltip>
+          <q-tooltip v-else>Dólar oficial Banco Nación (compra) · actualizado {{ fmtActualizado(store.tipoCambioActualizado) }}</q-tooltip>
 
           <q-menu anchor="bottom right" self="top right" style="border-radius:10px;border:1px solid #d4cfc4;width:290px">
             <div style="padding:12px 16px">
@@ -83,7 +96,13 @@
               <div v-if="store.tipoCambioManual" style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;margin-top:8px">
                 ✏️ Valor fijado a mano — no se actualiza solo.
               </div>
-              <div v-if="store.tipoCambioError" style="font-size:11px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:6px;padding:5px 8px;margin-top:8px">
+              <!-- Que la API falle no es lo mismo si hay un valor de respaldo que
+                   si no lo hay: en el segundo caso la app queda sin poder convertir. -->
+              <div v-if="store.tipoCambioError && !store.hayTipoCambio" style="font-size:11px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:6px;padding:6px 8px;margin-top:8px">
+                <b>No se pudo consultar el BNA y no hay ningún valor guardado.</b>
+                Los ítems en pesos no se pueden convertir a USD. Cargá el tipo de cambio a mano acá abajo.
+              </div>
+              <div v-else-if="store.tipoCambioError" style="font-size:11px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:6px;padding:5px 8px;margin-top:8px">
                 No se pudo consultar el BNA. Se usa el último valor guardado.
               </div>
 
