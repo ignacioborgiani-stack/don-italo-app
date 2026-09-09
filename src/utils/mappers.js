@@ -217,6 +217,28 @@ export const contratoAlquilerFromDb = r => ({
   repartoInvernal: r.reparto_invernal == null ? 0 : parseFloat(r.reparto_invernal),
 })
 
+// ── Precio de cultivo POR CAMPAÑA ─────────────────────────────────
+// El precio vive atado a la campaña, no al catálogo: si no, cambiar el precio
+// de hoy movería el alquiler (y el margen) de todas las campañas cerradas.
+// `origen` distingue lo cargado a mano de lo traído de la pizarra de la CAC,
+// para que un refresh sólo pise lo segundo.
+export const precioCampanaFromDb = r => ({
+  id: r.id,
+  cultivo: r.cultivo || '',
+  campana: r.campana || '',
+  precioUsdTn: parseFloat(r.precio_usd_tn) || 0,
+  origen: r.origen === 'pizarra' ? 'pizarra' : 'manual',
+  fecha: r.fecha || '',
+})
+export const precioCampanaToDb = p => ({
+  cultivo: p.cultivo || '',
+  campana: p.campana || '',
+  precio_usd_tn: parseFloat(p.precioUsdTn) || 0,
+  origen: p.origen === 'pizarra' ? 'pizarra' : 'manual',
+  fecha: p.fecha || '',
+  actualizado: new Date().toISOString(),
+})
+
 // ── Plantillas de costos (Proyectados) ────────────────────────────
 // Las plantillas NO se llevan las hectáreas aplicadas: dependen del lote y una
 // plantilla se reutiliza entre lotes de superficies distintas.

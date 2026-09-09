@@ -339,7 +339,7 @@ const proyOtrasCampanas = computed(() => store.proyecciones.length - proyCampani
 
 const ctx = computed(() => ({
   catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
-  cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
+  cultivosPrecio: store.cultivosPrecio,   // de la campaña activa, no el global del catálogo
 }))
 
 // Ha por cultivo = suma de ha de los lotes ASIGNADOS a la campaña activa con ese cultivo

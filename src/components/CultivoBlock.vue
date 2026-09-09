@@ -67,7 +67,9 @@ const emit = defineEmits(['update:cultivoObj'])
 
 const catStore = useCatalogoStore()
 const main = useMainStore()
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo
+// movería el alquiler de todas las campañas, incluidas las cerradas.
+const cultivosPrecio = computed(() => main.cultivosPrecio)
 
 // Costo por hectárea de LOTE: cada ítem prorrateado por las ha aplicadas de su etapa.
 // Los ítems en pesos sin TC (null) quedan afuera y se cuentan aparte.

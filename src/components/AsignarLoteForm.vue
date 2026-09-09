@@ -128,7 +128,9 @@ async function onCrearLote(data) {
   loteSel.value = nuevo; f.loteId = nuevo.id; paso.value = 2
 }
 
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo
+// movería el alquiler de todas las campañas, incluidas las cerradas.
+const cultivosPrecio = computed(() => main.cultivosPrecio)
 // Hectáreas del lote elegido: habilitan las "hectáreas aplicadas" por etapa.
 const haLote = computed(() => parseFloat(loteSel.value?.ha) || 0)
 

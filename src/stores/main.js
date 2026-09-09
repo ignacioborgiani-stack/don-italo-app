@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
 import { MOCK_LOTES, MOCK_PROYECCIONES, MOCK_STOCKS, CAMPAÑAS } from '../utils/constants'
-import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb, contratoAlquilerToDb, contratoAlquilerFromDb } from '../utils/mappers'
+import { loteToDb, loteFromDb, proyToDb, proyFromDb, stToDb, stFromDb, asignacionToDb, asignacionFromDb, costoFijoToDb, costoFijoFromDb, contratoAlquilerToDb, contratoAlquilerFromDb, precioCampanaToDb, precioCampanaFromDb } from '../utils/mappers'
 import { costoFijoAnualUsd, hayTc } from '../utils/calculations'
 import { fetchDolarOficialBNA } from '../utils/tipoCambio'
 import { useCatalogoStore } from './catalogo'
@@ -67,6 +67,7 @@ export const useMainStore = defineStore('main', () => {
   const stocks       = ref([])
   const costosFijos  = ref([])   // costos_fijos de estructura (por campaña)
   const contratosAlquiler = ref([])   // contratos de alquiler por lote+campaña
+  const preciosCampana    = ref([])   // precios_cultivo_campana (cultivo × campaña)
 
   // id de la campaña activa (para costos_fijos.campana_id)
   const campanaIdActiva = computed(() => campanasRows.value.find(c => c.nombre === campania.value)?.id || null)
@@ -79,6 +80,39 @@ export const useMainStore = defineStore('main', () => {
     costosFijosActivos.value.reduce((s, cf) => s + (costoFijoAnualUsd(cf, tipoCambio.value) ?? 0), 0))
   const costosFijosSinTc   = computed(() =>
     costosFijosActivos.value.filter(cf => costoFijoAnualUsd(cf, tipoCambio.value) === null).length)
+
+  // ── Precio de cultivo de la CAMPAÑA ACTIVA ────────────────────
+  // Mapa { cultivo: precioUsdTn } que consumen TODOS los cálculos: el alquiler
+  // por contrato (calcAlquilerTotal), el ítem de arrendamiento qq_soja y los
+  // precios de referencia.
+  //
+  // Antes se armaba en vivo desde el catálogo en nueve lugares distintos. Como
+  // `catalogo_cultivos` tiene UN precio por cultivo, global para toda la
+  // historia, cambiar el precio de la Soja movía el alquiler —y el margen— de
+  // todas las campañas, incluidas las cerradas. Ahora manda la fila de la
+  // campaña (migración 16).
+  //
+  // El catálogo queda como respaldo para cuando la campaña todavía no tiene
+  // precio propio de ese cultivo. Eso sólo pasa en campañas nuevas —la
+  // migración rellenó todas las que ya tenían datos—, que son justamente
+  // sobre las que se está trabajando.
+  const cultivosPrecio = computed(() => {
+    const out = {}
+    for (const c of useCatalogoStore().cultivos || []) out[c.nombre] = parseFloat(c.precioUsdTn) || 0
+    for (const p of preciosCampana.value) {
+      if (p.campana === campania.value) out[p.cultivo] = parseFloat(p.precioUsdTn) || 0
+    }
+    return out
+  })
+
+  // Fila de precio de un cultivo en una campaña (trae origen y fecha), o null
+  // si esa campaña todavía usa el respaldo del catálogo.
+  const precioCampanaDe = (cultivo, campana = campania.value) =>
+    preciosCampana.value.find(p => p.cultivo === cultivo && p.campana === campana) || null
+
+  // Cultivos del catálogo sin precio propio en la campaña activa.
+  const cultivosSinPrecioCampana = computed(() =>
+    (useCatalogoStore().cultivos || []).filter(c => !precioCampanaDe(c.nombre)).map(c => c.nombre))
 
   function getUid() {
     return useAuthStore().usuario?.id
@@ -125,6 +159,7 @@ export const useMainStore = defineStore('main', () => {
       try { await loadCampanas() } catch (e) { console.warn('[campanas] tabla no disponible:', e?.message) }
       try { await loadCostosFijos() } catch (e) { console.warn('[costos_fijos] tabla no disponible:', e?.message) }
       try { await loadContratosAlquiler() } catch (e) { console.warn('[contratos_alquiler] tabla no disponible:', e?.message) }
+      try { await loadPreciosCampana() } catch (e) { console.warn('[precios_cultivo_campana] tabla no disponible:', e?.message) }
       try { await usePlantillasStore().loadPlantillas() } catch (e) { console.warn('[plantillas_costos] tabla no disponible:', e?.message) }
       // DESACTIVADO (baja temporal de Stocks — C1 de la auditoría). Corría en cada
       // carga de la app: por cada stock 'aplicado' llamaba a aplicarEnLote (que
@@ -253,6 +288,31 @@ export const useMainStore = defineStore('main', () => {
     if (error) throw error
     contratosAlquiler.value = (data || []).map(contratoAlquilerFromDb)
   }
+  // ── Precios por campaña ───────────────────────────────────────
+  async function loadPreciosCampana() {
+    const { data, error } = await supabase.from('precios_cultivo_campana').select('*').eq('user_id', getOwnerId())
+    if (error) throw error
+    preciosCampana.value = (data || []).map(precioCampanaFromDb)
+  }
+
+  // Fija el precio de un cultivo en una campaña.
+  //   origen 'manual'  → lo puso el usuario; un refresh de pizarra NO lo pisa.
+  //   origen 'pizarra' → vino de la CAC; `fecha` es la de la pizarra.
+  async function setPrecioCampana(cultivo, precioUsdTn, { origen = 'manual', fecha = '', campana = campania.value } = {}) {
+    const userId = getOwnerId()
+    if (!userId || !cultivo || !campana) return null
+    const fila = { ...precioCampanaToDb({ cultivo, campana, precioUsdTn, origen, fecha }), user_id: userId }
+    const { data, error } = await supabase
+      .from('precios_cultivo_campana').upsert(fila, { onConflict: 'user_id,cultivo,campana' }).select().single()
+    if (error) throw error
+    const guardado = precioCampanaFromDb(data)
+    const i = preciosCampana.value.findIndex(p => p.cultivo === cultivo && p.campana === campana)
+    preciosCampana.value = i >= 0
+      ? preciosCampana.value.map((p, k) => (k === i ? guardado : p))
+      : [...preciosCampana.value, guardado]
+    return guardado
+  }
+
   // TODOS los contratos del lote, ordenados por campaña de inicio.
   function contratosDeLote(loteId) {
     return contratosAlquiler.value
@@ -311,6 +371,7 @@ export const useMainStore = defineStore('main', () => {
   function resetData() {
     lotes.value = []; asignaciones.value = []; proyecciones.value = []; stocks.value = []
     costosFijos.value = []; contratosAlquiler.value = []; campanasRows.value = []
+    preciosCampana.value = []
     sbConnected.value = false
     tipoCambioBna.value = null; tipoCambioManual.value = false
     tipoCambioActualizado.value = ''; tipoCambioError.value = ''
@@ -590,6 +651,7 @@ export const useMainStore = defineStore('main', () => {
 
   return {
     sbConnected, campania, campanas, campanasRows, lotes, asignaciones, proyecciones, stocks, costosFijos, contratosAlquiler,
+    preciosCampana, cultivosPrecio, precioCampanaDe, cultivosSinPrecioCampana, loadPreciosCampana, setPrecioCampana,
     tipoCambio, tipoCambioBna, tipoCambioManual, tipoCambioActualizado, tipoCambioCargando, tipoCambioError,
     hayTipoCambio, sinTipoCambio, costosFijosSinTc,
     campanaIdActiva, costosFijosActivos, costosFijosTotal,

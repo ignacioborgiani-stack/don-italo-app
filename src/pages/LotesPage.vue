@@ -233,7 +233,7 @@ const granja  = useGranjaStore()
 const verPrecios = computed(() => granja.verPrecios('costos_contables'))
 const ctx = computed(() => ({
   catalogo: catStore.items, labores: catStore.labores, tipoCambio: store.tipoCambio,
-  cultivosPrecio: Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])),
+  cultivosPrecio: store.cultivosPrecio,   // de la campaña activa, no el global del catálogo
 }))
 const headers = computed(() => verPrecios.value
   ? ['Lote','Alquiler','Cultivo','Ha','Costo/ha','Costo total','Ingreso/ha','Margen/ha','Margen total','Acciones']

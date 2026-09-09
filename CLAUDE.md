@@ -289,6 +289,23 @@ prefijo `gm_` para los miembros de granja, que se combinan con OR y usan funcion
 o mi propia cuenta) para leer y escribir. Un miembro invitado opera sobre los datos
 del dueño, no sobre los suyos.
 
+**El precio de cultivo está atado a la CAMPAÑA.** `catalogo_cultivos.precio_usd_tn`
+es un solo precio global, y el alquiler se calcula **en vivo** con él
+(`calcAlquilerTotal`: las dos modalidades de contrato multiplican por
+`precioRef = cultivosPrecio[cultivoReferencia]`). Con un precio global, cambiarlo
+movía el alquiler —y el margen— de **todas** las campañas, incluidas las cerradas.
+
+Por eso existe `precios_cultivo_campana` (migración 16) y **un solo lugar** arma el
+mapa: `main.cultivosPrecio`, que resuelve por la campaña activa. Antes se armaba con
+`Object.fromEntries(catStore.cultivos.map(...))` repetido en nueve componentes: si
+agregás un consumidor nuevo, usá el del store, **no lo vuelvas a armar del catálogo**.
+
+El catálogo quedó como *precio de hoy / semilla*: sólo se usa de respaldo cuando la
+campaña todavía no tiene fila propia para ese cultivo, que después del backfill pasa
+únicamente en campañas nuevas. `precioCampanaDe(cultivo)` devuelve la fila con su
+`origen` ('manual' o 'pizarra') y su `fecha`; `cultivosSinPrecioCampana` lista los que
+están cayendo al respaldo.
+
 **Campaña por defecto.** Nunca un año hardcodeado. Se resuelve: la última elegida en
 esa granja (guardada en `localStorage` con el `user_id` del dueño en la clave) → la
 más reciente → vacío. Cambiar de granja o de usuario no arrastra la campaña de la otra.
@@ -317,6 +334,7 @@ En `supabase/`, se corren a mano en el SQL Editor. Todas idempotentes salvo el s
 | `13_contratos_alquiler_multiple` | Varios contratos por lote + trigger anti-solape. |
 | `14_seguridad` | Arreglos de la auditoría: RPC `aceptar_invitacion`, gate de campaña en los datos, whitelist de lotes en stocks, políticas de `movimientos`. |
 | `15_plantillas_doble` | `tipo_siembra` + `datos` en plantillas, para plantillas de doble cultivo. |
+| `16_precios_campana` | `precios_cultivo_campana` (precio por cultivo × campaña) + `catalogo_cultivos.pizarra_producto`. Corrida el 09/09/2026. **Ojo:** la sección 1 hace `ALTER TABLE catalogo_cultivos`, que necesita lock exclusivo — con la app abierta y dos pestañas del SQL Editor a la vez dio *deadlock* y quedó a medias (tabla creada, políticas no). Correrla de a una pestaña y con la app cerrada. |
 
 No hay migración 12: se fusionó en la 11.
 

@@ -107,7 +107,9 @@ const campanas = computed(() => {
 const asigActiva = computed(() => main.asignaciones.find(a => a.loteId === props.lote.id && a.campaña === main.campania) || null)
 const esDoble = computed(() => asigActiva.value?.tipoSiembra === 'doble')
 
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo
+// movería el alquiler de todas las campañas, incluidas las cerradas.
+const cultivosPrecio = computed(() => main.cultivosPrecio)
 // Acá los alquileres se pactan en quintales de SOJA aunque el lote tenga trigo
 // o maíz, así que es el default y siempre tiene que estar entre las opciones.
 const CULTIVO_ALQUILER_DEFAULT = 'Soja'

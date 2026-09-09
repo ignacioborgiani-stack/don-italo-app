@@ -84,7 +84,8 @@ const emit = defineEmits(['save', 'cancel'])
 
 const store = useMainStore()
 const catStore = useCatalogoStore()
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo (ver stores/main.js)
+const cultivosPrecio = computed(() => store.cultivosPrecio)
 
 // Congela costoHaCalculado de cada ítem con el rinde/precio del cultivo (para vistas resumen).
 function finalizarCultivo(c) {

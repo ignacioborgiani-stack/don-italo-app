@@ -116,7 +116,6 @@ import { computed, ref } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useGranjaStore } from '../stores/granja'
-import { useCatalogoStore } from '../stores/catalogo'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
@@ -131,8 +130,8 @@ const tab  = ref('general')
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
 const granja   = useGranjaStore()
-const catStore = useCatalogoStore()
-const cultivosPrecioMap = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo (ver stores/main.js)
+const cultivosPrecioMap = computed(() => store.cultivosPrecio)
 // calcLote con el alquiler del contrato del lote ya incluido.
 const calcLoteAlq = l => calcLoteConAlquiler(l, l.ha, store.contratoVigente(l.loteId, store.campania), cultivosPrecioMap.value)
 // Un miembro sólo ve montos si tiene permiso de precios en algún módulo de costos.

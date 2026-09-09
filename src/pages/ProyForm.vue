@@ -227,7 +227,9 @@ async function guardarPlantilla() {
 }
 
 const catalogo = computed(() => catStore.items)
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo
+// movería el alquiler de todas las campañas, incluidas las cerradas.
+const cultivosPrecio = computed(() => main.cultivosPrecio)
 
 const costoHa  = computed(() => f.itemsCosto.reduce((s, it) =>
   s + calcularCostoItemHa(it, catalogo.value, cultivosPrecio.value, main.tipoCambio, f.rendimientoQq, f.precioVentaTn, catStore.labores), 0))

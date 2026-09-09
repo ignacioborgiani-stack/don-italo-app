@@ -190,7 +190,9 @@ const grupoName = 'items-' + uid()   // único por instancia: evita arrastrar í
 const catalogo = computed(() => catStore.items)
 const labores = computed(() => catStore.labores)
 const tipoCambio = computed(() => main.tipoCambio)
-const cultivosPrecio = computed(() => Object.fromEntries(catStore.cultivos.map(c => [c.nombre, c.precioUsdTn])))
+// Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo
+// movería el alquiler de todas las campañas, incluidas las cerradas.
+const cultivosPrecio = computed(() => main.cultivosPrecio)
 const familias = computed(() => [...new Set([...FAMILIAS_BASE, ...catalogo.value.map(i => i.familia)])].sort((a, b) => a.localeCompare(b)))
 const categoriasLabores = computed(() => [...new Set([...CATEGORIAS_LABORES, ...labores.value.map(l => l.categoria)])])
 
