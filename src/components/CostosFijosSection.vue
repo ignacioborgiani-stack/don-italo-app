@@ -55,7 +55,7 @@
       </div>
     </div>
     <p style="font-size:11px;color:#9ca3af;margin-top:8px">
-      Para el Resultado Neto, los montos mensuales se anualizan (×12) y los ARS se convierten a USD al tipo de cambio actual ({{ fmtMonto(main.tipoCambio) }} ARS/USD).
+      Para el Resultado Neto, los montos mensuales se anualizan (×12) y los ARS se convierten a USD al dólar oficial BNA compra ({{ fmtMonto(main.tipoCambio) }} ARS/USD).
     </p>
 
     <!-- Modal costo fijo -->

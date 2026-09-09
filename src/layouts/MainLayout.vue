@@ -66,15 +66,15 @@
           <span style="font-weight:500;opacity:.75;margin-left:4px">ARS/USD</span>
           <q-icon v-if="store.tipoCambioManual" name="edit" size="13px" class="q-ml-xs"/>
           <q-icon name="expand_more" size="16px" class="q-ml-xs"/>
-          <q-tooltip>Dólar oficial Banco Nación · actualizado {{ fmtActualizado(store.tipoCambioActualizado) }}</q-tooltip>
+          <q-tooltip>Dólar oficial Banco Nación (compra) · actualizado {{ fmtActualizado(store.tipoCambioActualizado) }}</q-tooltip>
 
           <q-menu anchor="bottom right" self="top right" style="border-radius:10px;border:1px solid #d4cfc4;width:290px">
             <div style="padding:12px 16px">
               <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em">Tipo de cambio</div>
               <div style="font-size:13px;color:#374151;margin-top:6px">
-                Dólar oficial <b>Banco Nación</b> (venta)
+                Dólar oficial <b>Banco Nación</b> — cotización <b>compra</b>
                 <div v-if="store.tipoCambioBna" style="font-size:12px;color:#6b7280;margin-top:2px">
-                  BNA hoy: <b style="color:#2d5a27">{{ fmtARS(store.tipoCambioBna) }}</b>
+                  BNA compra hoy: <b style="color:#2d5a27">{{ fmtARS(store.tipoCambioBna) }}</b>
                 </div>
               </div>
               <div style="font-size:11px;color:#9ca3af;margin-top:4px">

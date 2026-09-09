@@ -36,9 +36,12 @@ Sin esto, el código no se entiende.
   Las conversiones qq→tn aparecen por todos lados como `/ 10`.
 - **Tipo de cambio** — los insumos y servicios cotizados en pesos se pasan a USD con
   el dólar oficial del Banco Nación, que la app trae de la API pública de bluelytics
-  (`oficial.value_sell`) al cargar. El usuario puede sobreescribirlo a mano y ese
-  override gana hasta que vuelva al valor del BNA. Si la API falla, se usa el último
-  valor guardado en `configuracion`.
+  al cargar. Se usa **`oficial.value_buy` (COMPRA)**, no la venta: es el dólar al que
+  el productor liquida el grano, así que es la vara real contra la que se miden los
+  costos. Como el TC va en el **divisor**, compra (más baja que venta) hace que los
+  insumos en pesos valgan **más** medidos en USD. El usuario puede sobreescribirlo a
+  mano y ese override gana hasta que vuelva al valor del BNA. Si la API falla, se usa
+  el último valor guardado en `configuracion`.
 
 ---
 
@@ -369,6 +372,45 @@ pero cambia el aspecto de toda la app.
 
 **Errores de Supabase.** Son objetos `{message, code}`, no `Error`. Si los concatenás
 salen como `[object Object]`.
+
+---
+
+## Hallazgos abiertos de la auditoría — motor de cálculo
+
+Los tres son de la misma familia (el congelado de precios y su reconstrucción) y
+conviene atacarlos juntos. Ninguno está arreglado.
+
+**I1 — En doble cultivo el alquiler variable usa el rinde equivocado.** Con contrato
+`porcentaje_cosecha`, el monto se calcula con **un solo rinde, el del estival**, y
+después se reparte entre los dos cultivos. Verificado: mover el rinde estival de 47 a
+60 qq cambió el alquiler del **invernal** de 93,06 a 118,80 USD/ha; mover el rinde del
+invernal no cambió nada. Consecuencia: el rinde de indiferencia con alquiler del
+invernal trata como variable una plata que, respecto de su propio rinde, es fija.
+
+**I2 — Cambiar las hectáreas del lote corrompe el precio unitario al reabrir.** Es la
+trampa de `buildGrupos` disparada **sin tocar código**, sólo cambiando un dato:
+`precioUnit` se reconstruye como `costoHaCalculado / (dosis × factorEtapa)` y el
+`factorEtapa` se evalúa con las hectáreas de HOY, no con las de cuando se guardó.
+Verificado: guardado a 50 ha da 0,90; reabierto con el lote en 60 ha muestra 1,08. El
+costo total round-trippea bien, pero la primera edición de dosis posterior arranca de
+un precio unitario falso, con un error de `ha_vieja / ha_nueva`.
+
+**I8 — Labores en ARS y comercialización rompen el congelado al re-guardar.** Al
+volver a guardar una asignación de Contables, `AsignarLoteForm` recalcula
+`costoHaCalculado` con el tipo de cambio **del día**. Los insumos están protegidos,
+esos dos no, y el motivo es el **orden de las ramas de `calcularCostoItemHa`**:
+
+| Orden | Rama | ¿Protegida por `precioUnit`? |
+|---|---|---|
+| 1º | `item.laborId` (línea 133) | **No** — corta antes y reconvierte con `labor.moneda === 'ARS'` |
+| 2º | especiales (línea 158) | **No** — comercialización convierte su `arsPorTn` siempre en vivo |
+| 3º | canon HT (línea 210) | Sólo si el ítem tiene precio manual |
+| 4º | precio manual (línea 222) | **Sí** — devuelve `precioUnit × dosis` sin conversión |
+
+O sea: la rama de precio manual, que es la que implementa el congelado, es la
+**cuarta**. Todo lo que corta antes ignora el precio guardado. Viola la promesa
+central de la app ("abrir un lote viejo y guardarlo sin tocar nada no debe cambiar
+ningún número") para lotes con labores en pesos o con ítem de comercialización.
 
 ---
 
