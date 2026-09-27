@@ -104,6 +104,15 @@ en background.
 Antes de revivirlo conviene correr las dos consultas de diagnóstico para ver cuántos
 ítems quedaron varados en `lotes` y qué registró `movimientos`.
 
+**Diagnóstico corrido el 27/09/2026** (`supabase/diagnostico_stocks_baja.sql`):
+
+- **5 ítems varados** en la tabla legacy `lotes`, todos de la campaña **2024/25**, en
+  los lotes **El Bajo**, **La Esperanza** y **San Roque**. Son de una **cuenta de
+  prueba**, no de la operación real. **No tocarlos.** Limpiarlos cuando se reviva
+  Stocks, junto con el arreglo de `aplicarEnLote`.
+- `movimientos`: un solo traslado y **ningún `aplicado`**. O sea que en la operación
+  real "aplicar en campo" nunca llegó a ejecutarse: **C1 no costó datos productivos**.
+
 ---
 
 ## El editor de costos

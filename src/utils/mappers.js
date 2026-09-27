@@ -368,6 +368,9 @@ export const cultivoRefToDb = c => ({
   seguro_usd_ha: parseFloat(c.seguroUsdHa) || 0,
   rendimiento_asegurado_qq: parseFloat(c.rendimientoAseguradoQq) || 0,
   alquiler_qq_soja: parseFloat(c.alquilerQqSoja) || 0,
+  // Producto de la pizarra CAC (trigo|maiz|girasol|soja|sorgo). null = sin
+  // pizarra: el precio de ese cultivo es 100 % manual.
+  pizarra_producto: c.pizarraProducto || null,
   notas: c.notas || '',
 })
 
@@ -384,5 +387,6 @@ export const cultivoRefFromDb = r => ({
   seguroUsdHa: parseFloat(r.seguro_usd_ha) || 0,
   rendimientoAseguradoQq: parseFloat(r.rendimiento_asegurado_qq) || 0,
   alquilerQqSoja: parseFloat(r.alquiler_qq_soja) || 0,
+  pizarraProducto: r.pizarra_producto || null,
   notas: r.notas || '',
 })

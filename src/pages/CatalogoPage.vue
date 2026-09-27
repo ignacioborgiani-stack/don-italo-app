@@ -63,6 +63,51 @@
 
     <!-- ════════ CULTIVOS ════════ -->
     <div v-else-if="subtab==='cultivos'">
+      <!-- ── Barra de pizarra (CAC Rosario) ── -->
+      <div v-if="cultivos.length" style="background:#fff;border:1px solid #d4cfc4;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+        <div class="row items-center justify-between" style="flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1f2937">
+              📋 Precios de pizarra — Cámara Arbitral de Rosario
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">
+              <template v-if="pizarra.hayDatos">
+                Pizarra del <b>{{ pizarra.fechaTexto }}</b> · se aplican a la campaña <b>{{ main.campania }}</b>
+              </template>
+              <template v-else>
+                Trigo, maíz, girasol, soja y sorgo. Los demás cultivos siguen siendo manuales.
+              </template>
+            </div>
+          </div>
+          <div class="row items-center q-gutter-sm">
+            <span v-if="conNovedad" style="background:#f0fdf4;border:1px solid #86efac;color:#166534;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">
+              {{ conNovedad }} precio{{ conNovedad === 1 ? '' : 's' }} nuevo{{ conNovedad === 1 ? '' : 's' }}
+            </span>
+            <q-btn flat dense no-caps size="sm" color="grey-7" icon="refresh"
+              :label="pizarra.hayDatos ? 'Actualizar pizarra' : 'Consultar pizarra'"
+              :loading="pizarra.cargando" @click="pizarra.cargar()"/>
+            <q-btn v-if="traibles" unelevated dense no-caps size="sm" color="primary"
+              :label="traibles === 1 ? 'Traer 1' : `Traer los ${traibles}`" @click="traerTodosDePizarra"/>
+          </div>
+        </div>
+
+        <!-- Falla visible: los precios guardados no se tocan. -->
+        <div v-if="pizarra.error" style="margin-top:9px;background:#fff1f2;border:1px solid #fecaca;border-radius:7px;padding:7px 10px;font-size:11px;color:#dc2626">
+          <b>No se pudo leer la pizarra.</b> {{ pizarra.error }}
+          Los precios guardados quedan como están; podés cargarlos a mano editando cada cultivo.
+        </div>
+        <div v-if="errorPrecio" style="margin-top:9px;background:#fff1f2;border:1px solid #fecaca;border-radius:7px;padding:7px 10px;font-size:11px;color:#dc2626">
+          {{ errorPrecio }}
+        </div>
+        <div v-if="pizarra.hayDatos && !mapeados" style="margin-top:9px;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:7px 10px;font-size:11px;color:#92400e">
+          Ningún cultivo está vinculado a un producto de pizarra. Editá un cultivo y elegí el producto.
+        </div>
+        <div v-if="manualesDesactualizados" style="margin-top:9px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:7px;padding:7px 10px;font-size:11px;color:#4b5563">
+          {{ manualesDesactualizados }} cultivo{{ manualesDesactualizados === 1 ? ' tiene' : 's tienen' }} precio manual distinto al de la pizarra.
+          No se pisan solos: traelos de a uno si querés reemplazarlos.
+        </div>
+      </div>
+
       <div class="row items-center justify-end q-mb-md">
         <q-btn v-if="cultivos.length" unelevated color="primary" icon="add" label="Agregar cultivo" @click="addCultivoModal()"/>
       </div>
@@ -80,7 +125,43 @@
             <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:1px 8px;font-size:11px">{{ c.tipo==='invernal'?'🌾':'☀️' }}</span>
           </div>
           <div style="padding:12px 16px;font-size:13px;display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Precio</span><b>{{ fmtUSD(c.precioUsdTn) }}/tn</b></div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#6b7280">Precio</span>
+              <b>{{ fmtUSD(precioVer(c).usd) }}/tn</b>
+            </div>
+            <!-- De dónde salió y de qué fecha: un precio sin fuente no sirve
+                 para decidir. -->
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <span :style="`font-size:10px;font-weight:600;border-radius:999px;padding:2px 8px;background:${chipPrecio(c).bg};border:1px solid ${chipPrecio(c).bd};color:${chipPrecio(c).fg}`">
+                {{ chipPrecio(c).txt }}
+              </span>
+              <span v-if="!precioVer(c).propio" style="font-size:10px;color:#9ca3af" :title="`Esta campaña todavía no tiene precio propio de ${c.nombre}: se usa el del catálogo`">
+                usa el del catálogo
+              </span>
+            </div>
+
+            <!-- Oferta de pizarra para este cultivo -->
+            <template v-if="ofertaPizarra(c)">
+              <!-- Día sin cotización: se informa el estimado pero NO se guarda,
+                   y se mantiene el último precio bueno. -->
+              <div v-if="ofertaPizarra(c).sc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:6px 9px;font-size:11px;color:#92400e">
+                <b>S/C hoy</b> — sin cotización el {{ pizarra.fechaTexto }}.
+                Se mantiene el precio actual. Estimado de la CAC: {{ fmtUSD(ofertaPizarra(c).usd) }}/tn (no se guarda).
+              </div>
+              <div v-else-if="ofertaPizarra(c).novedad" style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:6px 9px;font-size:11px;color:#166534">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                  <span>Pizarra {{ pizarra.fechaTexto }}: <b>{{ fmtUSD(ofertaPizarra(c).usd) }}/tn</b></span>
+                  <q-btn unelevated dense no-caps size="sm" color="primary" label="Traer"
+                    :loading="guardandoPrecio === c.id" @click="traerDePizarra(c)"/>
+                </div>
+                <div v-if="precioVer(c).origen === 'manual'" style="font-size:10px;color:#4b5563;margin-top:3px">
+                  Tenés un valor manual: no se pisa solo.
+                </div>
+              </div>
+              <div v-else style="font-size:10px;color:#9ca3af">
+                Coincide con la pizarra del {{ pizarra.fechaTexto }}.
+              </div>
+            </template>
           </div>
           <div style="padding:0 16px 12px;display:flex;gap:6px">
             <button @click="editCultivoModal(c)" style="flex:1;padding:6px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;cursor:pointer;font-size:12px;color:#166534;font-weight:600">Editar</button>
@@ -193,6 +274,8 @@ import CultivoRefForm from '../components/CultivoRefForm.vue'
 import LaborForm from '../components/LaborForm.vue'
 import { getCultivoColor } from '../utils/constants'
 import { fmtUSD } from '../utils/formatters'
+import { useMainStore } from '../stores/main'
+import { usePizarraStore } from '../stores/pizarra'
 
 const store = useCatalogoStore()
 const subtabs = [{ key: 'insumos', label: 'Insumos' }, { key: 'cultivos', label: 'Cultivos' }, { key: 'labores', label: 'Labores' }]
@@ -279,6 +362,87 @@ async function onSaveInsumo(f) {
 }
 async function archivar(it) { await store.updItem(it.id, { activo: !it.activo }) }
 
+// ── Precios de pizarra (CAC Rosario) ──────────────────────────────
+// El precio que se muestra y se usa es el de la CAMPAÑA ACTIVA, no el global
+// del catálogo: cambiar el global movería el alquiler de campañas cerradas.
+// Ver "El precio de cultivo está atado a la CAMPAÑA" en el CLAUDE.md.
+const main    = useMainStore()
+const pizarra = usePizarraStore()
+
+// Precio efectivo del cultivo en la campaña activa (con su origen y fecha).
+// Si la campaña todavía no tiene fila propia, cae al del catálogo y se avisa.
+function precioVer(c) {
+  const fila = main.precioCampanaDe(c.nombre)
+  if (fila) return { usd: fila.precioUsdTn, origen: fila.origen, fecha: fila.fecha, propio: true }
+  return { usd: parseFloat(c.precioUsdTn) || 0, origen: 'catalogo', fecha: '', propio: false }
+}
+
+// "2026-09-08" → "08/09"
+const fechaCorta = iso => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '')
+
+const chipPrecio = c => {
+  const p = precioVer(c)
+  if (!p.propio) return { txt: 'Sin precio propio', bg: '#fffbeb', bd: '#fde68a', fg: '#92400e' }
+  if (p.origen === 'pizarra') return { txt: `Pizarra ${fechaCorta(p.fecha) || '—'}`, bg: '#f0fdf4', bd: '#86efac', fg: '#166534' }
+  return { txt: p.fecha ? `Manual ${fechaCorta(p.fecha)}` : 'Manual', bg: '#f3f4f6', bd: '#e5e7eb', fg: '#4b5563' }
+}
+
+// Lo que la pizarra ofrece hoy para este cultivo, si está mapeado.
+function ofertaPizarra(c) {
+  if (!c.pizarraProducto || !pizarra.hayDatos) return null
+  const p = pizarra.precioDe(c.pizarraProducto)
+  if (!p) return null
+  const actual = precioVer(c)
+  return {
+    ...p,
+    // "Hay precio nuevo": cambió el valor, o es de una fecha posterior a la
+    // que tiene guardada. Un S/C nunca cuenta como novedad: no se guarda.
+    novedad: !p.sc && (p.usd !== actual.usd || (pizarra.fecha && pizarra.fecha !== actual.fecha)),
+  }
+}
+// Cuántos precios nuevos hay (informativo) y cuántos se traerían de una. No
+// son lo mismo: un precio puesto a mano NO se pisa en masa, así que el botón
+// tiene que decir lo que realmente va a hacer.
+const conNovedad = computed(() => cultivos.value.filter(c => ofertaPizarra(c)?.novedad).length)
+const traibles   = computed(() => cultivos.value.filter(c => ofertaPizarra(c)?.novedad && precioVer(c).origen !== 'manual').length)
+const mapeados   = computed(() => cultivos.value.filter(c => c.pizarraProducto).length)
+
+const guardandoPrecio = ref('')
+const errorPrecio = ref('')
+
+// Escribe el precio de pizarra en la campaña activa. Los días S/C NO se
+// guardan: el valor que publica la CAC esos días es un estimado.
+async function traerDePizarra(c) {
+  const o = ofertaPizarra(c)
+  if (!o || o.sc) return
+  guardandoPrecio.value = c.id
+  errorPrecio.value = ''
+  try {
+    await main.setPrecioCampana(c.nombre, o.usd, { origen: 'pizarra', fecha: pizarra.fecha })
+  } catch (e) {
+    errorPrecio.value = `${c.nombre}: ${e?.message || 'no se pudo guardar el precio'}`
+  } finally {
+    guardandoPrecio.value = ''
+  }
+}
+
+// Trae todos los que tengan novedad. Los S/C y los manuales quedan afuera:
+// un valor puesto a mano no se pisa hasta que lo pidas por cultivo.
+async function traerTodosDePizarra() {
+  errorPrecio.value = ''
+  for (const c of cultivos.value) {
+    const o = ofertaPizarra(c)
+    if (o?.novedad && precioVer(c).origen !== 'manual') await traerDePizarra(c)
+  }
+}
+
+// Cultivos manuales que tienen un precio de pizarra distinto: se informa, no
+// se pisa. Es el mismo criterio que el override del tipo de cambio.
+const manualesDesactualizados = computed(() => cultivos.value.filter(c => {
+  const o = ofertaPizarra(c)
+  return o?.novedad && precioVer(c).origen === 'manual'
+}).length)
+
 // Cultivos CRUD
 const cultivoModal = ref(null)
 function addCultivoModal() { cultivoModal.value = { edit: false, item: null } }
@@ -286,6 +450,17 @@ function editCultivoModal(c) { cultivoModal.value = { edit: true, item: c } }
 async function onSaveCultivo(f) {
   if (cultivoModal.value.edit) await store.updCultivo(cultivoModal.value.item.id, f)
   else await store.addCultivo(f)
+  // El precio del catálogo es sólo la semilla: lo que realmente usan los
+  // cálculos es el de la campaña activa. Escribir a mano acá lo marca 'manual'
+  // con la fecha de hoy, así la pizarra no lo pisa hasta que se pida.
+  try {
+    await main.setPrecioCampana(f.nombre, f.precioUsdTn, {
+      origen: 'manual',
+      fecha: new Date().toISOString().slice(0, 10),
+    })
+  } catch (e) {
+    errorPrecio.value = `${f.nombre}: se guardó el cultivo pero no el precio de la campaña — ${e?.message || ''}`
+  }
   cultivoModal.value = null
 }
 
