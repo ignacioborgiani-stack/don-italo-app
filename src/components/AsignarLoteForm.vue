@@ -8,7 +8,9 @@
         No hay lotes en el catastro todavía. Creá uno primero.
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-height:340px;overflow-y:auto;margin-bottom:14px">
+      <!-- Sin max-height propio: el que scrollea ahora es el cuerpo del modal
+           maximizado, y anidar dos scrolls hace que la grilla quede encerrada. -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:14px">
         <button v-for="l in lotesMaestro" :key="l.id" :disabled="asignado(l.id)" @click="elegir(l)"
           :style="{textAlign:'left',padding:'10px 12px',border:`1.5px solid ${asignado(l.id)?'#e5e7eb':'#86efac'}`,borderRadius:'9px',cursor:asignado(l.id)?'not-allowed':'pointer',background:asignado(l.id)?'#f9fafb':'#fff',opacity:asignado(l.id)?0.7:1,fontFamily:'inherit'}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
@@ -20,7 +22,7 @@
         </button>
       </div>
 
-      <div class="row items-center justify-between">
+      <div class="di-modal-foot row items-center justify-between">
         <q-btn flat color="primary" label="+ Crear lote nuevo" @click="crearLote=true"/>
         <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
       </div>
@@ -49,25 +51,29 @@
 
       <template v-if="f.tipoSiembra==='simple'">
         <CultivoBlock titulo="Cultivo" emoji="🌱" border-color="#3a6b35" cultivo-type="simple"
-          :cultivo-obj="f.cultivo" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivo=v"/>
+          :cultivo-obj="f.cultivo" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('simple','cultivo',v)"/>
       </template>
       <template v-else>
         <CultivoBlock titulo="Cultivo Invernal" emoji="🌾" border-color="#5b8dd9" cultivo-type="invernal"
-          :cultivo-obj="f.cultivoInvernal" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivoInvernal=v"/>
+          :cultivo-obj="f.cultivoInvernal" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('invernal','cultivoInvernal',v)"/>
         <CultivoBlock titulo="Cultivo Estival (sobre rastrojo)" emoji="☀️" border-color="#e8a838" cultivo-type="estival"
-          :cultivo-obj="f.cultivoEstival" :ha-lote="haLote" @update:cultivo-obj="v=>f.cultivoEstival=v"/>
+          :cultivo-obj="f.cultivoEstival" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('estival','cultivoEstival',v)"/>
       </template>
 
-      <div v-if="bloqueadosSinTc" style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e">
-        <b>No se puede guardar sin tipo de cambio.</b>
-        Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
-        guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
-        Cargá el tipo de cambio desde el chip 💵 de la barra superior.
-      </div>
-      <div class="row items-center justify-between q-mt-md">
-        <q-btn v-if="!editMode" flat label="← Volver" @click="paso=1"/>
-        <q-btn v-else flat label="Cancelar" @click="$emit('cancel')"/>
-        <q-btn unelevated color="primary" label="Guardar asignación" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
+      <!-- El aviso viaja DENTRO del pie fijo: si no, quedaría scrolleado lejos
+           del botón deshabilitado y no se entendería por qué no se puede guardar. -->
+      <div class="di-modal-foot">
+        <div v-if="bloqueadosSinTc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
+          <b>No se puede guardar sin tipo de cambio.</b>
+          Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
+          guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
+          Cargá el tipo de cambio desde el chip 💵 de la barra superior.
+        </div>
+        <div class="row items-center justify-between">
+          <q-btn v-if="!editMode" flat label="← Volver" @click="paso=1"/>
+          <q-btn v-else flat label="Cancelar" @click="$emit('cancel')"/>
+          <q-btn unelevated color="primary" label="Guardar asignación" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
+        </div>
       </div>
     </template>
 
@@ -95,7 +101,7 @@ import { calcularCostoItemHa, factorItem, itemsSinTc } from '../utils/calculatio
 import { fmtNum } from '../utils/formatters'
 
 const props = defineProps({ campania: String, initial: Object })
-const emit  = defineEmits(['save', 'cancel'])
+const emit  = defineEmits(['save', 'cancel', 'lote'])
 
 const lmStore = useLotesMaestroStore()
 const main = useMainStore()
@@ -121,11 +127,40 @@ const f = reactive(editMode ? {
   cultivo: emptyC('Soja', 'estival'), cultivoInvernal: emptyC('Trigo', 'invernal'), cultivoEstival: emptyC('Soja', 'estival'),
 })
 
-function elegir(l) { if (asignado(l.id)) return; loteSel.value = l; f.loteId = l.id; paso.value = 2 }
+function elegir(l) { if (asignado(l.id)) return; loteSel.value = l; f.loteId = l.id; paso.value = 2; emit('lote', l) }
 async function onCrearLote(data) {
   const nuevo = await lmStore.addLote(data)
   crearLote.value = false
-  loteSel.value = nuevo; f.loteId = nuevo.id; paso.value = 2
+  loteSel.value = nuevo; f.loteId = nuevo.id; paso.value = 2; emit('lote', nuevo)
+}
+
+// ── Precio de venta precargado (SÓLO asignaciones nuevas) ────────────
+// Arranca con el precio del cultivo en la campaña activa en vez de 0, y
+// acompaña si cambiás de cultivo. Al EDITAR una asignación existente no se
+// toca nunca: el precio guardado es el que se congeló y manda.
+const precioSugerido = nombre => parseFloat(main.cultivosPrecio?.[nombre]) || 0
+// Último valor que puso la precarga. Si el que llega es distinto, lo escribió
+// el usuario y a partir de ahí no se le sugiere más nada en ese bloque.
+const autoPrecio   = reactive({ simple: null, invernal: null, estival: null })
+const precioTocado = reactive({ simple: false, invernal: false, estival: false })
+
+function conSugerido(key, c) {
+  if (editMode || precioTocado[key]) return c
+  const p = precioSugerido(c.nombre)
+  autoPrecio[key] = p || ''
+  return { ...c, precioVentaTn: p || '' }
+}
+
+function onCultivo(key, campo, v) {
+  const cambioCultivo = v.nombre !== f[campo].nombre
+  if (!editMode && String(v.precioVentaTn ?? '') !== String(autoPrecio[key] ?? '')) precioTocado[key] = true
+  f[campo] = cambioCultivo ? conSugerido(key, v) : v
+}
+
+if (!editMode) {
+  f.cultivo         = conSugerido('simple',   f.cultivo)
+  f.cultivoInvernal = conSugerido('invernal', f.cultivoInvernal)
+  f.cultivoEstival  = conSugerido('estival',  f.cultivoEstival)
 }
 
 // Precio de la CAMPAÑA ACTIVA, no el global del catálogo: si no, cambiarlo

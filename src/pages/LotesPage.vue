@@ -185,13 +185,28 @@
     </q-dialog>
 
     <!-- Asignar / Editar -->
-    <q-dialog v-if="asignarModal" :model-value="true" @hide="asignarModal=null">
-      <q-card style="width:700px;max-width:95vw;border-radius:14px;padding:28px;max-height:92vh;overflow-y:auto">
-        <div class="row items-center justify-between q-mb-md">
-          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">{{ asignarModal.initial ? 'Editar asignación' : 'Asignar lote a la campaña' }}</h2>
+    <q-dialog v-if="asignarModal" :model-value="true" maximized @hide="asignarModal=null">
+      <q-card class="di-modal">
+        <div class="di-modal-head">
+          <div style="min-width:0">
+            <h2 style="font-size:16px;font-weight:700;color:#2d5a27;margin:0;line-height:1.2">
+              {{ asignarModal.initial ? 'Editar asignación' : 'Asignar lote a la campaña' }}
+            </h2>
+            <div style="font-size:12px;color:#6b7280;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              <template v-if="asignarLote">
+                <b style="color:#374151">{{ asignarLote.nombre }}</b> · {{ fmtNum(asignarLote.ha) }} ha · {{ store.campania }}
+              </template>
+              <template v-else>{{ store.campania }}</template>
+            </div>
+          </div>
           <q-btn flat round dense icon="close" @click="asignarModal=null"/>
         </div>
-        <AsignarLoteForm :campania="store.campania" :initial="asignarModal.initial" @save="onSaveAsignacion" @cancel="asignarModal=null"/>
+        <div class="di-modal-body">
+          <div class="di-modal-inner">
+            <AsignarLoteForm :campania="store.campania" :initial="asignarModal.initial"
+              @lote="l => asignarModal.lote = l" @save="onSaveAsignacion" @cancel="asignarModal=null"/>
+          </div>
+        </div>
       </q-card>
     </q-dialog>
 
@@ -256,6 +271,10 @@ function chipAlquiler(contrato) {
 }
 
 const asignarModal = ref(null)
+// Lote que muestra el encabezado del modal. Al editar sale de la asignación;
+// al asignar uno nuevo lo emite el formulario cuando lo elegís (paso 1).
+const asignarLote = computed(() => asignarModal.value?.lote
+  || (asignarModal.value?.initial ? lmStore.byId(asignarModal.value.initial.loteId) : null))
 const verRow  = ref(null)
 const bajaRow = ref(null)
 

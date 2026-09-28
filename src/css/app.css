@@ -18,3 +18,24 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .q-tab { color: rgba(255,255,255,.75) !important; }
 .q-tab__indicator { background: #a8d5a2 !important; }
 .q-field__native, .q-field__input { font-family: 'DM Sans', system-ui, sans-serif !important; }
+
+/* ── Modales a pantalla completa (Contables y Proyectados) ────────────
+   Editar una asignación o un presupuesto es la pantalla donde más tiempo
+   se pasa: va maximizada, con el encabezado y el pie SIEMPRE visibles y
+   scroll sólo en el medio. El pie vive dentro del formulario (ahí están
+   Guardar/Cancelar), así que se pega con position:sticky al área que
+   scrollea en vez de sacarlo del componente. */
+.di-modal      { display: flex; flex-direction: column; height: 100%; width: 100%; background: #f5f2ea; }
+.di-modal-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                 padding: 11px 20px; background: #fff; border-bottom: 1px solid #d4cfc4; }
+.di-modal-body { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 18px 20px 0; }
+/* Ancho máximo: en un monitor grande, las filas de ítems estiradas de punta
+   a punta se vuelven ilegibles. */
+.di-modal-inner { max-width: 1100px; margin: 0 auto; }
+.di-modal-foot { position: sticky; bottom: 0; z-index: 2; margin-top: 16px;
+                 padding: 12px 0; background: #f5f2ea; border-top: 1px solid #d4cfc4; }
+
+@media (max-width: 599px) {
+  .di-modal-head { padding: 9px 12px; }
+  .di-modal-body { padding: 12px 12px 0; }
+}

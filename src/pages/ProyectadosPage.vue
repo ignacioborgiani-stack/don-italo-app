@@ -294,16 +294,27 @@
     </q-dialog>
 
     <!-- Edit proy modal -->
-    <q-dialog v-if="editProy" :model-value="true" @hide="cerrarEditor">
-      <q-card style="width:620px;max-width:95vw;border-radius:14px;padding:28px;max-height:90vh;overflow-y:auto">
-        <div class="row items-center justify-between q-mb-md">
-          <h2 style="font-size:17px;font-weight:700;color:#2d5a27;margin:0">Presupuesto: {{ editProy.cultivo }}</h2>
+    <q-dialog v-if="editProy" :model-value="true" maximized @hide="cerrarEditor">
+      <q-card class="di-modal">
+        <div class="di-modal-head">
+          <div style="min-width:0">
+            <h2 style="font-size:16px;font-weight:700;color:#2d5a27;margin:0;line-height:1.2">
+              Presupuesto: {{ editProy.cultivo }}
+            </h2>
+            <div style="font-size:12px;color:#6b7280;margin-top:1px">
+              {{ editProy.esDoble || editProy.tipoSiembra === 'doble' ? 'Doble cultivo' : 'Cultivo simple' }} · {{ store.campania }}
+            </div>
+          </div>
           <q-btn flat round dense icon="close" @click="cerrarEditor"/>
         </div>
-        <p v-if="errorGuardar" style="font-size:12px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin:0 0 12px">
-          {{ errorGuardar }}
-        </p>
-        <ProyForm :proy="editProy" :guardando="guardando" @save="onSaveProy" @cancel="cerrarEditor"/>
+        <div class="di-modal-body">
+          <div class="di-modal-inner">
+            <p v-if="errorGuardar" style="font-size:12px;color:#dc2626;background:#fff1f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin:0 0 12px">
+              {{ errorGuardar }}
+            </p>
+            <ProyForm :proy="editProy" :guardando="guardando" @save="onSaveProy" @cancel="cerrarEditor"/>
+          </div>
+        </div>
       </q-card>
     </q-dialog>
   </q-page>

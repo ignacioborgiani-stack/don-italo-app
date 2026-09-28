@@ -110,15 +110,19 @@
       <p v-if="errorPlantilla" style="font-size:12px;color:#dc2626;margin:6px 0 0">{{ errorPlantilla }}</p>
     </div>
 
-    <div v-if="bloqueadosSinTc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
-      <b>No se puede guardar sin tipo de cambio.</b>
-      Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
-      guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
-      Cargá el tipo de cambio desde el chip 💵 de la barra superior.
-    </div>
-    <div class="row justify-end q-gutter-sm">
-      <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
-      <q-btn unelevated color="primary" label="Guardar" :loading="guardando" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
+    <!-- El aviso viaja DENTRO del pie fijo: si no, quedaría scrolleado lejos
+         del botón deshabilitado y no se entendería por qué no se puede guardar. -->
+    <div class="di-modal-foot">
+      <div v-if="bloqueadosSinTc" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
+        <b>No se puede guardar sin tipo de cambio.</b>
+        Hay {{ bloqueadosSinTc }} ítem{{ bloqueadosSinTc === 1 ? '' : 's' }} en pesos que no se {{ bloqueadosSinTc === 1 ? 'puede' : 'pueden' }} convertir a USD;
+        guardar ahora congelaría {{ bloqueadosSinTc === 1 ? 'ese costo' : 'esos costos' }} en cero.
+        Cargá el tipo de cambio desde el chip 💵 de la barra superior.
+      </div>
+      <div class="row justify-end q-gutter-sm">
+        <q-btn flat label="Cancelar" @click="$emit('cancel')"/>
+        <q-btn unelevated color="primary" label="Guardar" :loading="guardando" :disable="!!bloqueadosSinTc" @click="onGuardar"/>
+      </div>
     </div>
   </div>
 </template>

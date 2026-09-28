@@ -4,7 +4,7 @@
       <span style="font-size:18px">{{ emoji }}</span>
       <h4 :style="{fontSize:'12px',fontWeight:700,color:borderColor,textTransform:'uppercase',letterSpacing:'.04em',margin:0}">{{ titulo }}</h4>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="di-fila-cultivo">
       <div>
         <label class="di-lbl">Cultivo</label>
         <CultivoSelect :model-value="cultivoObj.nombre||''" :tipo="cultivoType" @update:model-value="onNombre"/>
@@ -94,3 +94,22 @@ function onNombre(n) {
   emit('update:cultivoObj', { ...props.cultivoObj, nombre: n, tipo })
 }
 </script>
+
+<style scoped>
+/* Cultivo / Rendimiento / Precio de venta.
+   Iba con `grid-template-columns: 1fr 1fr 1fr` fijo, pero como `.di-inp` no
+   está definida en ningún CSS (ver "Trampas conocidas" del CLAUDE.md) los
+   inputs conservan el ancho por defecto del browser y no se achican a su
+   celda: en el celular el campo de precio quedaba cortado. Se arregla acá,
+   local, igual que se hizo en ItemCostoRow. */
+.di-fila-cultivo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.di-fila-cultivo input,
+.di-fila-cultivo select,
+.di-fila-cultivo :deep(input),
+.di-fila-cultivo :deep(select) { width: 100%; min-width: 0; }
+</style>
