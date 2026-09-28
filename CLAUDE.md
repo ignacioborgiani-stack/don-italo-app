@@ -466,11 +466,33 @@ ningún número") para lotes con labores en pesos o con ítem de comercializaci�
    baja temporalmente".
 7. **Confirmar que la migración 14 se corrió.**
 
+**A decidir: ingresos y costos se miden con dólares distintos**
+
+8. La app usa **dos tipos de cambio** sin querer, y no están alineados:
+
+   - **Los ingresos** salen del precio de pizarra, que la Cámara Arbitral convierte
+     a USD con el **dólar DIVISA comprador** (el de la transferencia con la que se
+     liquida el grano).
+   - **Los costos** en pesos se convierten con el **dólar BILLETE compra** del BNA,
+     que es lo que trae bluelytics (`oficial.value_buy`).
+
+   Valores del **28/09/2026**: billete compra **1.494,00**; divisa comprador
+   implícito en la pizarra **1.510,51** (sale de dividir los ARS por los USD que
+   publica la CAC — da igual en los cuatro cultivos cotizados, así que es una sola
+   tasa). **Diferencia: 1,10 %.**
+
+   O sea que el margen mezcla dos varas. El error es chico y va en una sola
+   dirección (los costos quedan apenas sobrevaluados en USD frente a los ingresos),
+   pero está ahí. Opciones si se decide corregirlo: usar el divisa para todo —
+   habría que conseguir la serie, bluelytics no la publica—, o derivar el divisa del
+   cociente ARS/USD de la propia pizarra, que ya lo tenemos gratis. **Registrado, no
+   corregido.**
+
 **Menores**
 
-8. Definir `.di-inp` y `.di-lbl` globalmente.
-9. El módulo "Encargar insumos" es un placeholder.
-10. La API key de Anthropic quedó en la tabla `configuracion` de usuarios que la
+9. Definir `.di-inp` y `.di-lbl` globalmente.
+10. El módulo "Encargar insumos" es un placeholder.
+11. La API key de Anthropic quedó en la tabla `configuracion` de usuarios que la
     hayan cargado, del Chat IA que se eliminó. Conviene borrar esas filas y revocar
     la key.
 
