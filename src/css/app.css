@@ -39,3 +39,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   .di-modal-head { padding: 9px 12px; }
   .di-modal-body { padding: 12px 12px 0; }
 }
+
+/* ── Fila Cultivo / Rendimiento / Precio + "Costo en kilos" ───────────
+   La comparten el editor de Contables (CultivoBlock) y el de Proyectados
+   (ProyForm), así que vive acá y no en un scoped.
+   Los tres campos se angostan para dejarle lugar al indicador a la derecha;
+   en pantallas chicas el indicador baja solo.
+   El `width: 100%` de los inputs es necesario porque `.di-inp` no está
+   definida en ningún lado (ver "Trampas conocidas" del CLAUDE.md): sin eso
+   conservan el ancho por defecto del browser, no se achican a su celda y en
+   el celular el campo de precio quedaba cortado. */
+.di-fila-cultivo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.di-fila-cultivo > .di-campo { flex: 1 1 130px; min-width: 120px; max-width: 220px; }
+.di-fila-cultivo input,
+.di-fila-cultivo select { width: 100%; min-width: 0; }

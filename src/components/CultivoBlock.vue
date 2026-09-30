@@ -5,18 +5,21 @@
       <h4 :style="{fontSize:'12px',fontWeight:700,color:borderColor,textTransform:'uppercase',letterSpacing:'.04em',margin:0}">{{ titulo }}</h4>
     </div>
     <div class="di-fila-cultivo">
-      <div>
+      <div class="di-campo">
         <label class="di-lbl">Cultivo</label>
         <CultivoSelect :model-value="cultivoObj.nombre||''" :tipo="cultivoType" @update:model-value="onNombre"/>
       </div>
-      <div>
+      <div class="di-campo">
         <label class="di-lbl">Rendimiento (qq/ha)</label>
         <input type="number" :value="cultivoObj.rendimientoQq||''" @input="set('rendimientoQq',$event.target.value)" placeholder="0" class="di-inp"/>
       </div>
-      <div>
+      <div class="di-campo">
         <label class="di-lbl">Precio venta (USD/tn)</label>
         <input type="number" :value="cultivoObj.precioVentaTn||''" @input="set('precioVentaTn',$event.target.value)" placeholder="0" class="di-inp"/>
       </div>
+
+      <CostoEnKilos :cultivo-obj="cultivoObj" :ha-lote="haLote"
+        :alquiler-ha="alquilerHa" :alquiler-variable-tn="alquilerVariableTn"/>
     </div>
     <ItemsCostoCatalogo
       :items="cultivoObj.itemsCosto||[]"
@@ -45,6 +48,7 @@
 import { computed } from 'vue'
 import CultivoSelect from './CultivoSelect.vue'
 import ItemsCostoCatalogo from './ItemsCostoCatalogo.vue'
+import CostoEnKilos from './CostoEnKilos.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
 import { CULTIVARES_INVERNALES } from '../utils/constants'
@@ -62,6 +66,12 @@ const props = defineProps({
   // Hectáreas del lote: habilitan las "hectáreas aplicadas" por etapa. 0 en
   // Proyectados, donde el presupuesto abarca varios lotes.
   haLote: { type: [Number, String], default: 0 },
+  // Alquiler para el "costo en kilos con alquiler". null = deducirlo de los
+  // ítems 'arrendamiento' del propio cultivo. En Contables el padre pasa el
+  // del CONTRATO del lote, que es el que manda cuando existe (igual que en
+  // el modal Ver de LotesPage).
+  alquilerHa:         { type: Number, default: null },
+  alquilerVariableTn: { type: Number, default: null },
 })
 const emit = defineEmits(['update:cultivoObj'])
 
@@ -79,6 +89,7 @@ const itemHa = it => {
 }
 const costoHa  = computed(() => (props.cultivoObj.itemsCosto || []).reduce((s, it) => s + (itemHa(it) ?? 0), 0))
 const sinTcCount = computed(() => (props.cultivoObj.itemsCosto || []).filter(it => itemHa(it) === null).length)
+
 const ingHa    = computed(() => calcIngresoHa(props.cultivoObj))
 const margenHa = computed(() => ingHa.value - costoHa.value)
 
@@ -95,21 +106,3 @@ function onNombre(n) {
 }
 </script>
 
-<style scoped>
-/* Cultivo / Rendimiento / Precio de venta.
-   Iba con `grid-template-columns: 1fr 1fr 1fr` fijo, pero como `.di-inp` no
-   está definida en ningún CSS (ver "Trampas conocidas" del CLAUDE.md) los
-   inputs conservan el ancho por defecto del browser y no se achican a su
-   celda: en el celular el campo de precio quedaba cortado. Se arregla acá,
-   local, igual que se hizo en ItemCostoRow. */
-.di-fila-cultivo {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.di-fila-cultivo input,
-.di-fila-cultivo select,
-.di-fila-cultivo :deep(input),
-.di-fila-cultivo :deep(select) { width: 100%; min-width: 0; }
-</style>

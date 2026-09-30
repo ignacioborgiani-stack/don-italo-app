@@ -67,15 +67,20 @@
 
     <!-- ════════ CULTIVO SIMPLE ════════ -->
     <template v-else>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      <div>
+    <!-- Los dos campos se angostan para dejarle lugar al "Costo en kilos" a la
+         derecha, igual que en el editor de Contables. -->
+    <div class="di-fila-cultivo">
+      <div class="di-campo">
         <label class="di-lbl">Rendimiento (qq/ha)</label>
         <input v-model="f.rendimientoQq" type="number" class="di-inp"/>
       </div>
-      <div>
+      <div class="di-campo">
         <label class="di-lbl">Precio venta (USD/tn)</label>
         <input v-model="f.precioVentaTn" type="number" class="di-inp"/>
       </div>
+      <!-- Sin alquiler explícito: lo deduce de los ítems 'arrendamiento' del
+           presupuesto, que es de donde sale en Proyectados. -->
+      <CostoEnKilos :cultivo-obj="f"/>
     </div>
     <ItemsCostoCatalogo
       :key="editorKey"
@@ -131,6 +136,7 @@
 import { reactive, computed, ref } from 'vue'
 import ItemsCostoCatalogo from '../components/ItemsCostoCatalogo.vue'
 import CultivoBlock from '../components/CultivoBlock.vue'
+import CostoEnKilos from '../components/CostoEnKilos.vue'
 import { useCatalogoStore } from '../stores/catalogo'
 import { useMainStore } from '../stores/main'
 import { usePlantillasStore } from '../stores/plantillas'

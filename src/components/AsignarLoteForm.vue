@@ -51,13 +51,19 @@
 
       <template v-if="f.tipoSiembra==='simple'">
         <CultivoBlock titulo="Cultivo" emoji="🌱" border-color="#3a6b35" cultivo-type="simple"
-          :cultivo-obj="f.cultivo" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('simple','cultivo',v)"/>
+          :cultivo-obj="f.cultivo" :ha-lote="haLote"
+          :alquiler-ha="alqContrato.simpleHa" :alquiler-variable-tn="alqContrato.variableTn"
+          @update:cultivo-obj="v=>onCultivo('simple','cultivo',v)"/>
       </template>
       <template v-else>
         <CultivoBlock titulo="Cultivo Invernal" emoji="🌾" border-color="#5b8dd9" cultivo-type="invernal"
-          :cultivo-obj="f.cultivoInvernal" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('invernal','cultivoInvernal',v)"/>
+          :cultivo-obj="f.cultivoInvernal" :ha-lote="haLote"
+          :alquiler-ha="alqContrato.invernalHa" :alquiler-variable-tn="alqContrato.variableTn"
+          @update:cultivo-obj="v=>onCultivo('invernal','cultivoInvernal',v)"/>
         <CultivoBlock titulo="Cultivo Estival (sobre rastrojo)" emoji="☀️" border-color="#e8a838" cultivo-type="estival"
-          :cultivo-obj="f.cultivoEstival" :ha-lote="haLote" @update:cultivo-obj="v=>onCultivo('estival','cultivoEstival',v)"/>
+          :cultivo-obj="f.cultivoEstival" :ha-lote="haLote"
+          :alquiler-ha="alqContrato.estivalHa" :alquiler-variable-tn="alqContrato.variableTn"
+          @update:cultivo-obj="v=>onCultivo('estival','cultivoEstival',v)"/>
       </template>
 
       <!-- El aviso viaja DENTRO del pie fijo: si no, quedaría scrolleado lejos
@@ -97,7 +103,7 @@ import LoteMaestroForm from './LoteMaestroForm.vue'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useMainStore } from '../stores/main'
 import { useCatalogoStore } from '../stores/catalogo'
-import { calcularCostoItemHa, factorItem, itemsSinTc } from '../utils/calculations'
+import { calcularCostoItemHa, factorItem, itemsSinTc, alquilerPorCultivo, porTnSonda } from '../utils/calculations'
 import { fmtNum } from '../utils/formatters'
 
 const props = defineProps({ campania: String, initial: Object })
@@ -168,6 +174,32 @@ if (!editMode) {
 const cultivosPrecio = computed(() => main.cultivosPrecio)
 // Hectáreas del lote elegido: habilitan las "hectáreas aplicadas" por etapa.
 const haLote = computed(() => parseFloat(loteSel.value?.ha) || 0)
+
+// ── Alquiler del CONTRATO para el "costo en kilos con alquiler" ──────
+// Mismo criterio que el modal Ver de LotesPage: si el lote tiene contrato
+// vigente manda el contrato; si no, cada bloque deduce el alquiler de sus
+// propios ítems 'arrendamiento' (null = que lo resuelva el bloque).
+// La parte que escala con el rinde se saca con la sonda —recalculando el
+// contrato a un rinde de referencia— para que el indicador no dependa del
+// rinde cargado.
+const alqContrato = computed(() => {
+  const vacio = { simpleHa: null, invernalHa: null, estivalHa: null, variableTn: null }
+  const contrato = loteSel.value ? main.contratoVigente(loteSel.value.id, props.campania) : null
+  if (!contrato) return vacio
+  const asig = { tipoSiembra: f.tipoSiembra, cultivo: f.cultivo, cultivoInvernal: f.cultivoInvernal, cultivoEstival: f.cultivoEstival }
+  const r = alquilerPorCultivo(contrato, asig, haLote.value, cultivosPrecio.value)
+  // Sólo 'porcentaje_cosecha' escala con el rinde; los quintales fijos no.
+  const variableTn = contrato.tipoContrato === 'porcentaje_cosecha'
+    ? porTnSonda(rinde => {
+        const conRinde = f.tipoSiembra === 'doble'
+          ? { ...asig, cultivoEstival: { ...f.cultivoEstival, rendimientoQq: rinde } }
+          : { ...asig, cultivo: { ...f.cultivo, rendimientoQq: rinde } }
+        const x = alquilerPorCultivo(contrato, conRinde, haLote.value, cultivosPrecio.value)
+        return (x.simpleHa ?? 0) + (x.invernalHa ?? 0) + (x.estivalHa ?? 0)
+      })
+    : 0
+  return { simpleHa: r.simpleHa ?? 0, invernalHa: r.invernalHa ?? 0, estivalHa: r.estivalHa ?? 0, variableTn }
+})
 
 function finalizar(c) {
   if (!c) return null
