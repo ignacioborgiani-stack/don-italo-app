@@ -400,6 +400,26 @@ pero cambia el aspecto de toda la app.
 **Errores de Supabase.** Son objetos `{message, code}`, no `Error`. Si los concatenás
 salen como `[object Object]`.
 
+**El Supabase simulado no detecta columnas que no existen.** El patrón de
+verificación de abajo —montar los componentes reales reemplazando la capa de red
+por una base en memoria— valida mappers, componentes y round-trip, pero acepta
+**cualquier** campo que le mandes: no tiene esquema. Una escritura con una columna
+inexistente pasa todas las pruebas y revienta recién en producción, con
+`Could not find the 'X' column of 'Y' in the schema cache`.
+
+Pasó con `precios_cultivo_campana`: el mapper escribía `actualizado`, una columna
+que estaba en el borrador de la migración 16 pero no quedó en la tabla real. El
+harness no lo vio; apareció al tocar "Traer" en producción.
+
+**Por eso: todo cambio que ESCRIBA en una tabla nueva o en una columna nueva hay que
+probarlo contra la base real antes de darlo por bueno.** Y conviene contrastar los
+campos de cada `insert`/`update`/`upsert` contra las columnas reales:
+
+```sql
+SELECT column_name FROM information_schema.columns
+ WHERE table_name = 'precios_cultivo_campana' ORDER BY ordinal_position;
+```
+
 ---
 
 ## Hallazgos abiertos de la auditoría — motor de cálculo

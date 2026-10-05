@@ -387,6 +387,10 @@ const chipPrecio = c => {
   return { txt: p.fecha ? `Manual ${fechaCorta(p.fecha)}` : 'Manual', bg: '#f3f4f6', bd: '#e5e7eb', fg: '#4b5563' }
 }
 
+// Dos precios son "el mismo" si se ven iguales en pantalla. Es la comparación
+// que importa para decidir si hay algo que traer.
+const mismoPrecio = (a, b) => fmtUSD(a) === fmtUSD(b)
+
 // Lo que la pizarra ofrece hoy para este cultivo, si está mapeado.
 function ofertaPizarra(c) {
   if (!c.pizarraProducto || !pizarra.hayDatos) return null
@@ -395,9 +399,12 @@ function ofertaPizarra(c) {
   const actual = precioVer(c)
   return {
     ...p,
-    // "Hay precio nuevo": cambió el valor, o es de una fecha posterior a la
-    // que tiene guardada. Un S/C nunca cuenta como novedad: no se guarda.
-    novedad: !p.sc && (p.usd !== actual.usd || (pizarra.fecha && pizarra.fecha !== actual.fecha)),
+    // "Hay precio nuevo" sólo si cambia el número QUE SE VE. fmtUSD redondea a
+    // enteros, así que una diferencia de centavos no es novedad: ofrecer
+    // "Traer" para algo que no mueve ningún número confunde.
+    // Que cambie sólo la FECHA tampoco es novedad — no habría nada que traer.
+    // Y un S/C nunca lo es: su valor es un estimado y no se guarda.
+    novedad: !p.sc && !mismoPrecio(p.usd, actual.usd),
   }
 }
 // Cuántos precios nuevos hay (informativo) y cuántos se traerían de una. No

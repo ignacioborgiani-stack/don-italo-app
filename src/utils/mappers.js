@@ -235,8 +235,10 @@ export const precioCampanaToDb = p => ({
   campana: p.campana || '',
   precio_usd_tn: parseFloat(p.precioUsdTn) || 0,
   origen: p.origen === 'pizarra' ? 'pizarra' : 'manual',
+  // `fecha` es la de la pizarra (o la de la edición manual) y es la que se
+  // muestra. No se escribe ninguna marca de tiempo extra: la tabla no tiene
+  // columna para eso y nadie la leería — `created_at` ya cubre el alta.
   fecha: p.fecha || '',
-  actualizado: new Date().toISOString(),
 })
 
 // ── Plantillas de costos (Proyectados) ────────────────────────────
