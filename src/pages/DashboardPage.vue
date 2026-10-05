@@ -67,6 +67,12 @@
           <div v-else-if="r.sinRindeIndif" style="font-size:10px;color:#dc2626;margin-top:2px;line-height:1.25">
             contribución marginal negativa
           </div>
+          <!-- El rinde de indiferencia se calcula igual con el rinde en 0 (la
+               tasa por tonelada no depende de él), pero el margen y el ingreso
+               por hectárea sí: ámbar, como el resto de los "falta un dato". -->
+          <div v-if="r.sinRindeCargado" style="font-size:10px;color:#b45309;margin-top:2px;line-height:1.25">
+            ⚠️ cargá el rinde
+          </div>
         </div>
       </div>
       <p v-else style="font-size:13px;color:#9ca3af;margin:6px 0 0">
@@ -116,12 +122,13 @@ import { computed, ref } from 'vue'
 import { useMainStore } from '../stores/main'
 import { useLotesMaestroStore } from '../stores/lotesMaestro'
 import { useGranjaStore } from '../stores/granja'
+import { useCatalogoStore } from '../stores/catalogo'
 import SvgDonut from '../components/charts/SvgDonut.vue'
 import SvgVBar  from '../components/charts/SvgVBar.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import { getCultivoColor } from '../utils/constants'
 import { calcLoteConAlquiler, getCultivoLabel, getLoteName, indicadoresCultivo, calcProyDoble,
-         costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems } from '../utils/calculations'
+         costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems, tasasVariablesTn } from '../utils/calculations'
 import { fmtUSD, fmtK } from '../utils/formatters'
 
 const tabs = [{ key: 'general', label: 'General' }, { key: 'encargos', label: 'Encargar insumos' }]
@@ -130,6 +137,11 @@ const tab  = ref('general')
 const store    = useMainStore()
 const lmStore  = useLotesMaestroStore()
 const granja   = useGranjaStore()
+const catStore = useCatalogoStore()
+// Contexto para la sonda del costo variable por tonelada: con él, el rinde de
+// indiferencia no depende del rinde cargado y coincide con el del editor.
+const ctxTn = computed(() => ({ catalogo: catStore.items, labores: catStore.labores,
+  cultivosPrecio: store.cultivosPrecio, tipoCambio: store.tipoCambio }))
 // Precio de la CAMPAÑA ACTIVA, no el global del catálogo (ver stores/main.js)
 const cultivosPrecioMap = computed(() => store.cultivosPrecio)
 // calcLote con el alquiler del contrato del lote ya incluido.
@@ -182,13 +194,13 @@ const rindesIndif = computed(() => {
   const out = []
   for (const p of proys) {
     if (p.tipoSiembra === 'doble') {
-      const d = calcProyDoble(p)
+      const d = calcProyDoble(p, ctxTn.value)
       for (const parte of [d.inv, d.est]) {
         if (!parte.nombre || parte.nombre === '—') continue
         out.push({
           key: `${p.cultivo}|${parte.nombre}`, nombre: parte.nombre, doble: p.cultivo,
           color: getCultivoColor(parte.nombre),
-          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg, sinRindeIndif: parte.ind.sinRindeIndif, mensaje: parte.ind.mensajeSinRinde,
+          tn: parte.ind.rindeIndifConTn, kg: parte.ind.rindeIndifConKg, sinRindeIndif: parte.ind.sinRindeIndif, sinRindeCargado: parte.ind.sinRindeCargado, mensaje: parte.ind.mensajeSinRinde,
         })
       }
     } else {
@@ -198,11 +210,12 @@ const rindesIndif = computed(() => {
         alquilerVariableHa: alquilerVariableHaItems(p),
         costoVariableHa: costoVariableHaItems(p),
         precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
+        ...tasasVariablesTn(p, ctxTn.value),
       })
       out.push({
         key: p.cultivo, nombre: p.cultivo, doble: null,
         color: getCultivoColor(p.cultivo),
-        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg, sinRindeIndif: ind.sinRindeIndif, mensaje: ind.mensajeSinRinde,
+        tn: ind.rindeIndifConTn, kg: ind.rindeIndifConKg, sinRindeIndif: ind.sinRindeIndif, sinRindeCargado: ind.sinRindeCargado, mensaje: ind.mensajeSinRinde,
       })
     }
   }

@@ -73,7 +73,14 @@
                 <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 4px">Indicadores</p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(d.ind.rindeIndifSinTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span :title="TIP_ALQ">Rinde indif. c/alq *</span><b>{{ fmtRinde(d.ind.rindeIndifConTn) }}</b></div>
-                <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b></div>
+                <div style="display:flex;justify-content:space-between;padding:2px 0">
+                  <span>Margen contrib./tn</span>
+                  <!-- Sin rinde cargado no hay produccion sobre la cual leer la
+                       contribucion por tonelada: guion y aviso abajo. -->
+                  <b v-if="d.ind.sinRindeCargado" style="color:#9ca3af">—</b>
+                  <b v-else :style="{color:d.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(d.ind.margenContribTn) }}/tn</b>
+                </div>
+                <p v-if="d.ind.sinRindeCargado" style="font-size:10px;color:#b45309;margin:4px 0 0;line-height:1.3">⚠️ Cargá el rinde: el rinde de indiferencia se calcula igual, pero la contribución y el margen/ha quedan sin valor.</p>
                 <p v-if="d.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">{{ d.ind.mensajeSinRinde }}
                 </p>
               </div>
@@ -114,7 +121,14 @@
                 <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 4px">Indicadores · {{ pt.nombre }}</p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Rinde indif. s/alq</span><b>{{ fmtRinde(pt.ind.rindeIndifSinTn) }}</b></div>
                 <div style="display:flex;justify-content:space-between;padding:2px 0"><span :title="TIP_ALQ">Rinde indif. c/alq *</span><b>{{ fmtRinde(pt.ind.rindeIndifConTn) }}</b></div>
-                <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Margen contrib./tn</span><b :style="{color:pt.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(pt.ind.margenContribTn) }}/tn</b></div>
+                <div style="display:flex;justify-content:space-between;padding:2px 0">
+                  <span>Margen contrib./tn</span>
+                  <!-- Sin rinde cargado no hay produccion sobre la cual leer la
+                       contribucion por tonelada: guion y aviso abajo. -->
+                  <b v-if="pt.ind.sinRindeCargado" style="color:#9ca3af">—</b>
+                  <b v-else :style="{color:pt.ind.margenContribTn>=0?'#166534':'#dc2626'}">{{ fmtUSD(pt.ind.margenContribTn) }}/tn</b>
+                </div>
+                <p v-if="pt.ind.sinRindeCargado" style="font-size:10px;color:#b45309;margin:4px 0 0;line-height:1.3">⚠️ Cargá el rinde: el rinde de indiferencia se calcula igual, pero la contribución y el margen/ha quedan sin valor.</p>
                 <p v-if="pt.ind.sinRindeIndif" style="font-size:10px;color:#dc2626;margin:4px 0 0;line-height:1.3">{{ pt.ind.mensajeSinRinde }}
                 </p>
                 <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px solid #e5e7eb;margin-top:4px;padding-top:5px">
@@ -331,7 +345,7 @@ import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
 import ProyForm from './ProyForm.vue'
 import { getCultivoColor, TODOS_CULTIVARES, CULTIVARES_INVERNALES, CULTIVARES_ESTIVALES } from '../utils/constants'
-import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems, indicadoresCultivo, calcProyDoble } from '../utils/calculations'
+import { calcCostoHa, calcIngresoHa, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, costoVariableHaItems, indicadoresCultivo, calcProyDoble, tasasVariablesTn } from '../utils/calculations'
 import { nombreDoble } from '../utils/mappers'
 import { filasCultivo, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
@@ -372,7 +386,7 @@ const calcHaDoble = (inv, est) => store.asignaciones
 const barData = computed(() => proyCampania.value.map(p => {
   if (p.tipoSiembra === 'doble') {
     const ha = calcHaDoble(p.cultivoInvernal?.nombre, p.cultivoEstival?.nombre)
-    const d  = calcProyDoble(p)
+    const d  = calcProyDoble(p, ctx.value)
     const parte = (x, emoji, cultivo) => ({ ...x, emoji, rendimientoQq: cultivo?.rendimientoQq, precioVentaTn: cultivo?.precioVentaTn })
     return {
       cultivo: p.cultivo, esDoble: true, ha, proy: p,
@@ -389,6 +403,10 @@ const barData = computed(() => proyCampania.value.map(p => {
     alquilerVariableHa: alquilerVariableHaItems(p),
     costoVariableHa: costoVariableHaItems(p),
     precioTn: p.precioVentaTn, rindeQq: p.rendimientoQq,
+    // Tasas por tonelada con la sonda: el rinde de indiferencia deja de
+    // depender del rinde cargado y coincide exacto con el del editor.
+    // En Proyectados no hay prorrateo por etapa, así que el factor es 1.
+    ...tasasVariablesTn(p, ctx.value),
   })
   return {
     cultivo: p.cultivo, esDoble: false, tipo: p.tipo, proy: p, ha,

@@ -124,12 +124,20 @@
                   <td style="padding:6px 8px;font-weight:600">{{ row.nombre }}</td>
                   <td style="padding:6px 8px;text-align:right">{{ fmtRinde(row.ind.rindeIndifSinTn) }}</td>
                   <td style="padding:6px 8px;text-align:right">{{ fmtRinde(row.ind.rindeIndifConTn) }}</td>
-                  <td style="padding:6px 8px;text-align:right;font-weight:700" :style="{color: row.ind.margenContribTn>=0 ? '#166534':'#dc2626'}">{{ fmtUSD(row.ind.margenContribTn) }}/tn</td>
+                  <!-- La contribución marginal se expresa por tonelada, pero sin
+                       rinde cargado no hay producción sobre la cual leerla: se
+                       deja en guión y el aviso va debajo de la tabla. -->
+                  <td v-if="row.ind.sinRindeCargado" style="padding:6px 8px;text-align:right;color:#9ca3af">—</td>
+                  <td v-else style="padding:6px 8px;text-align:right;font-weight:700" :style="{color: row.ind.margenContribTn>=0 ? '#166534':'#dc2626'}">{{ fmtUSD(row.ind.margenContribTn) }}/tn</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p v-if="mensajeSinRindeVer" style="font-size:11px;color:#dc2626;margin:6px 0 0">{{ mensajeSinRindeVer }}</p>
+          <p v-if="sinRindeCargadoVer" style="font-size:11px;color:#b45309;margin:6px 0 0">
+            ⚠️ Cargá el rinde. El rinde de indiferencia se calcula igual —no depende del rinde—, pero la contribución marginal
+            y el margen por hectárea sí, y quedan sin valor.
+          </p>
           <p style="font-size:10px;color:#9ca3af;margin:4px 0 0">
             * El rinde con alquiler descuenta la parte del alquiler que varía con el rinde, así que no sale de dividir por la contribución marginal de al lado.
           </p>
@@ -236,7 +244,7 @@ import CultivoBadge from '../components/CultivoBadge.vue'
 import SvgDonut    from '../components/charts/SvgDonut.vue'
 import ResultadoNetoCard from '../components/ResultadoNetoCard.vue'
 import CostosFijosSection from '../components/CostosFijosSection.vue'
-import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, alquilerVariableDeContrato, costoVariableHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual } from '../utils/calculations'
+import { calcLoteConAlquiler, pieCostosPorCategoria, costoHaSinAlquiler, alquilerHaItems, alquilerVariableHaItems, alquilerVariableDeContrato, costoVariableHaItems, alquilerPorCultivo, indicadoresCultivo, asignacionTieneArrendamientoManual, tasasVariablesTn, porTnSonda, factorItem } from '../utils/calculations'
 import { filasAsignacion, agruparEnSecciones, exportarExcel } from '../utils/resumenInsumos'
 import { fmtUSD, fmtK, fmtNum } from '../utils/formatters'
 
@@ -355,10 +363,28 @@ const indicadoresVer = computed(() => {
     const alquilerVariableHa = alq
       ? alquilerVariableDeContrato(contrato, alquilerHa)
       : alquilerVariableHaItems(cultivo)
+    // Tasas por tonelada con la sonda: el rinde de indiferencia deja de
+    // depender del rinde cargado y coincide exacto con el del editor. En
+    // Contables el costo está prorrateado por hectáreas de etapa, así que la
+    // sonda aplica el mismo factor.
+    const factor = it => factorItem(it, cultivo.etapas, verRow.value.ha)
+    const tasas = tasasVariablesTn(cultivo, ctx.value, factor)
+    // Con contrato, la tasa del alquiler sale del contrato, no de los ítems:
+    // sólo 'porcentaje_cosecha' escala con el rinde.
+    if (alq) tasas.alquilerVariableTn = contrato?.tipoContrato === 'porcentaje_cosecha'
+      ? porTnSonda(r => {
+          const conRinde = a.tipoSiembra === 'doble'
+            ? { ...a, cultivoEstival: { ...a.cultivoEstival, rendimientoQq: r } }
+            : { ...a, cultivo: { ...a.cultivo, rendimientoQq: r } }
+          const x = alquilerPorCultivo(contrato, conRinde, verRow.value.ha, ctx.value.cultivosPrecio)
+          return (x.simpleHa ?? 0) + (x.invernalHa ?? 0) + (x.estivalHa ?? 0)
+        })
+      : 0
     return { nombre: cultivo.nombre, ind: indicadoresCultivo({
       costoSinAlqHa: costoHaSinAlquiler(cultivo), alquilerHa, alquilerVariableHa,
       costoVariableHa: costoVariableHaItems(cultivo),
       precioTn: cultivo.precioVentaTn, rindeQq: cultivo.rendimientoQq,
+      ...tasas,
     }) }
   }
   if (a.tipoSiembra === 'doble') return [mk(a.cultivoEstival, alq?.estivalHa), mk(a.cultivoInvernal, alq?.invernalHa)].filter(Boolean)
@@ -366,6 +392,7 @@ const indicadoresVer = computed(() => {
 })
 const fmtRinde = tn => tn > 0 ? `${tn.toFixed(2)} tn (${Math.round(tn * 1000).toLocaleString('es-AR')} kg)` : '—'
 // Mensaje del primer cultivo que no tenga rinde de indiferencia.
+const sinRindeCargadoVer = computed(() => indicadoresVer.value.some(r => r.ind.sinRindeCargado))
 const mensajeSinRindeVer = computed(() => indicadoresVer.value.find(r => r.ind.sinRindeIndif)?.ind.mensajeSinRinde || '')
 
 // Excel: hoja 1 = detalle del lote, hoja 2 = resumen de todos los lotes de la campaña

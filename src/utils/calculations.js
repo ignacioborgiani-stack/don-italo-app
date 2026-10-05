@@ -443,7 +443,10 @@ export function alquilerPorCultivo(contrato, asignacion, ha, cultivosPrecio = {}
 // 'arrendamiento'. Se JUNTA el de los dos cultivos y se reparte según el % que
 // define el usuario. Ojo: el reparto NO cambia el total consolidado (mueve
 // alquiler de un cultivo al otro), sólo el margen y los indicadores de cada uno.
-export function calcProyDoble(p) {
+// `ctx` (catálogo, labores, precios, tipo de cambio) es OPCIONAL: si viene, el
+// rinde de indiferencia se calcula con la tasa por tonelada de la sonda y deja
+// de depender del rinde cargado. Sin ctx, el comportamiento es el de siempre.
+export function calcProyDoble(p, ctx = null) {
   const rI = parseFloat(p?.repartoInvernal ?? 50) || 0
   const rE = parseFloat(p?.repartoEstival ?? 50) || 0
   const sum = (rI + rE) || 100
@@ -451,8 +454,13 @@ export function calcProyDoble(p) {
   // La parte del alquiler que escala con el rinde se junta y se reparte con el
   // MISMO porcentaje que el total, para que las dos cifras queden consistentes.
   const alqVarTotalHa = alquilerVariableHaItems(p?.cultivoInvernal) + alquilerVariableHaItems(p?.cultivoEstival)
+  // La tasa por tonelada del alquiler se junta y se reparte igual.
+  const alqVarTotalTn = ctx
+    ? costoVariableTnDe(p?.cultivoInvernal, ctx, undefined, esAlquilerVariable)
+      + costoVariableTnDe(p?.cultivoEstival, ctx, undefined, esAlquilerVariable)
+    : null
 
-  const parte = (cultivo, alquilerHa, alquilerVariableHa) => {
+  const parte = (cultivo, alquilerHa, alquilerVariableHa, alquilerVariableTn) => {
     const costoSinAlqHa = costoHaSinAlquiler(cultivo)
     const costoHa   = costoSinAlqHa + alquilerHa
     const ingresoHa = calcIngresoHa(cultivo)
@@ -463,12 +471,14 @@ export function calcProyDoble(p) {
       ind: indicadoresCultivo({
         costoSinAlqHa, alquilerHa, alquilerVariableHa, costoVariableHa: costoVariableHaItems(cultivo),
         precioTn: cultivo?.precioVentaTn, rindeQq: cultivo?.rendimientoQq,
+        costoVariableTn: ctx ? costoVariableTnDe(cultivo, ctx) : null,
+        alquilerVariableTn,
       }),
     }
   }
 
-  const inv = parte(p?.cultivoInvernal, alquilerTotalHa * rI / sum, alqVarTotalHa * rI / sum)
-  const est = parte(p?.cultivoEstival,  alquilerTotalHa * rE / sum, alqVarTotalHa * rE / sum)
+  const inv = parte(p?.cultivoInvernal, alquilerTotalHa * rI / sum, alqVarTotalHa * rI / sum, alqVarTotalTn == null ? null : alqVarTotalTn * rI / sum)
+  const est = parte(p?.cultivoEstival,  alquilerTotalHa * rE / sum, alqVarTotalHa * rE / sum, alqVarTotalTn == null ? null : alqVarTotalTn * rE / sum)
   return {
     alquilerTotalHa,
     costoHa:   inv.costoHa + est.costoHa,
@@ -511,6 +521,18 @@ export function porTnSonda(fnHaEnRinde) {
   return v == null ? null : v / (RINDE_SONDA_QQ / 10)
 }
 
+// Tasas por tonelada listas para pasarle a indicadoresCultivo. Evita repetir
+// la sonda en cada pantalla y garantiza que todas usen el mismo criterio, que
+// es lo que hace que el número del editor y el del Dashboard coincidan.
+// `alquilerVariableTn` sale de los ítems 'arrendamiento'; en Contables, cuando
+// el lote tiene CONTRATO, el llamador lo pisa con el del contrato.
+export function tasasVariablesTn(cultivo, ctx = {}, factor = () => 1) {
+  return {
+    costoVariableTn: costoVariableTnDe(cultivo, ctx, factor),
+    alquilerVariableTn: costoVariableTnDe(cultivo, ctx, factor, esAlquilerVariable),
+  }
+}
+
 // Costo variable USD/tn de un cultivo, recalculando sus ítems variables a la
 // sonda. `factor` aplica el prorrateo por etapa (Contables) y `filtro` elige
 // qué ítems entran: por defecto los variables por tonelada, pero sirve igual
@@ -547,10 +569,15 @@ export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, alquiler
   // equivoca, el resto quedaría como fijo negativo).
   const alqVarHa = Math.min(Math.max(0, parseFloat(alquilerVariableHa) || 0), alqHa)
 
-  // Tasa por tonelada. Si el llamador la pasó, se usa tal cual y el indicador
-  // no depende del rinde. Si no, se deduce dividiendo, como siempre.
-  const varTnDado = costoVariableTn == null ? null : (parseFloat(costoVariableTn) || 0)
-  const alqVarTnDado = alquilerVariableTn == null ? null : (parseFloat(alquilerVariableTn) || 0)
+  // Tasa por tonelada. Con rinde > 0 se deduce dividiendo, igual que siempre:
+  // así el indicador queda consistente con los costos que la pantalla muestra
+  // (en Contables son los CONGELADOS, y la sonda recalcula en vivo, con el
+  // tipo de cambio y el catálogo de hoy). La tasa que pasa el llamador se usa
+  // sólo donde dividir no se puede: con rinde 0. Eso hace que "cero
+  // diferencias con rinde > 0" sea estructural y no una casualidad.
+  const usarDados = rindeTn <= 0
+  const varTnDado = (usarDados && costoVariableTn != null) ? (parseFloat(costoVariableTn) || 0) : null
+  const alqVarTnDado = (usarDados && alquilerVariableTn != null) ? (parseFloat(alquilerVariableTn) || 0) : null
   // Con rinde 0 y sin tasa por tonelada no hay forma de saber cuánto cuesta
   // cada tonelada: los cuatro conceptos variables valen 0/ha justamente porque
   // el rinde es 0. Antes se asumía "no hay variables" y salía un número
@@ -597,6 +624,10 @@ export function indicadoresCultivo({ costoSinAlqHa = 0, alquilerHa = 0, alquiler
     margenContribTn,                       // el visible: SIN alquiler
     margenContribConAlqTn,                 // interno: denominador del rinde c/alq
     sinRindeIndifSin, sinRindeIndifCon, faltaRinde,
+    // El rinde está en 0. Con la tasa por tonelada el rinde de indiferencia se
+    // calcula igual, pero todo lo que SÍ depende del rinde (ingreso/ha,
+    // margen/ha, margen total) queda en 0 y la pantalla tiene que avisarlo.
+    sinRindeCargado: rindeTn <= 0,
     sinRindeIndif: sinRindeIndifSin || sinRindeIndifCon,
     mensajeSinRinde: faltaRinde ? MSG_SIN_RINDE.sinRinde
       : sinRindeIndifSin ? MSG_SIN_RINDE.sinAlquiler
